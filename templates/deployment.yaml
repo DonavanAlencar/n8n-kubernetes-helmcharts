@@ -41,12 +41,14 @@ spec:
               value: "{{ include "n8n.fullname" . }}-redis-master"
             - name: EXECUTIONS_REDIS_PORT
               value: "6379"
+            - name: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+              value: "true"
           volumeMounts:
             - name: n8n-data
               mountPath: /home/node/.n8n
             - name: config
-              mountPath: /root/.n8n/config
-              subPath: config.json
+              mountPath: /home/node/.n8n/config
+              subPath: config
       volumes:
         - name: n8n-data
           emptyDir: {}
@@ -54,5 +56,5 @@ spec:
           configMap:
             name: {{ include "n8n.fullname" . }}-config
             items:
-              - key: config.json
-                path: config.json
+              - key: config
+                path: config
