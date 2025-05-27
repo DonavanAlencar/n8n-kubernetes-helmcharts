@@ -21,7 +21,10 @@ spec:
             - sh
             - -c
             - |
-              npm install {{ range $i, $pkg := .Values.extraNodePackages }}{{ if $i }} && npm install {{ end }}$pkg.name {{ range $pkg.installArgs }} ${{ . }}{{ end }}{{ end }}
+              # garante que o diretório exista
+              mkdir -p /home/node/.n8n
+              # instala o pacote direto nesse diretório
+              npm install --prefix /home/node/.n8n @n8n/n8n-nodes-langchain --no-save
           volumeMounts:
             - name: n8n-data
               mountPath: /home/node/.n8n
