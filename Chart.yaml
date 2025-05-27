@@ -2,7 +2,7 @@ apiVersion: v2
 name: n8n
 description: A Helm chart para deploy do n8n
 type: application
-version: 0.3.1
+version: 0.3.2
 appVersion: "1.92.0"
 
 dependencies:

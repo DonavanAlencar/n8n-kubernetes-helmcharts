@@ -55,6 +55,7 @@ spec:
         - name: config
           configMap:
             name: {{ include "n8n.fullname" . }}-config
+            defaultMode: 0600
             items:
               - key: config
                 path: config
