@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "n8n.fullname" . }}-deployment
+  labels:
+    app: {{ include "n8n.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "n8n.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "n8n.name" . }}
+    spec:
+      initContainers:
+        - name: install-nodes
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              npm install {{ range .Values.extraNodePackages }}{{ .name }} {{ range .installArgs }}{{ . }} {{ end }}{{ end }}
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+      containers:
+        - name: n8n
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 5678
+          env:
+            - name: EXECUTIONS_PROCESS
+              value: "queue"
+            - name: EXECUTIONS_REDIS_HOST
+              value: "{{ include "n8n.fullname" . }}-redis-master"
+            - name: EXECUTIONS_REDIS_PORT
+              value: "6379"
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+            - name: config
+              mountPath: /root/.n8n/config
+              subPath: config.json
+      volumes:
+        - name: n8n-data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "n8n.fullname" . }}-config
+            items:
+              - key: config.json
+                path: config.json

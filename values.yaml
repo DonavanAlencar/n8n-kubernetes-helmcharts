@@ -1,0 +1,67 @@
+# Imagem do n8n
+image:
+  repository: n8nio/n8n
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Réplicas do webserver
+replicaCount: 1
+
+# Serviço para acesso externo
+service:
+  type: LoadBalancer
+  port: 5678
+
+# Ingress (Traefik) para HTTPS
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: "web,websecure"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: le
+  hosts:
+    - host: n8n.546digitalservices.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - n8n.546digitalservices.com
+
+# Queue mode e configurações de scaling
+scaling:
+  enabled: true
+
+# Subchart Redis
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  architecture: standalone
+  master:
+    persistence:
+      enabled: false
+      storageClass: ""
+      size: 20Gi
+  service:
+    port: 6379
+    type: ClusterIP
+  metrics:
+    enabled: false
+
+# Chave de criptografia customizada
+config:
+  encryptionKey: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK"
+
+# Instalação de nodes adicionais no container
+extraNodePackages:
+  - name: "@n8n/n8n-nodes-langchain"
+    installArgs:
+      - "--no-save"
+
+# Workers e webhooks
+worker:
+  enabled: true
+webhook:
+  enabled: false

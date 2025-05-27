@@ -1,0 +1,11 @@
+apiVersion: v2
+name: n8n
+description: A Helm chart para deploy do n8n
+type: application
+version: 0.3.0
+appVersion: "1.92.0"
+
+dependencies:
+  - name: redis
+    version: 17.6.1
+    repository: https://charts.bitnami.com/bitnami
