@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: {{ include "n8n.fullname" . }}-config
 data:
-  config.json: |
+  config.json: |-
     {
       "encryptionKey": "{{ .Values.config.encryptionKey }}"
     }

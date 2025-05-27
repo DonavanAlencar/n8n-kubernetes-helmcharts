@@ -1,18 +1,14 @@
-# Imagem do n8n
 image:
   repository: n8nio/n8n
   tag: latest
   pullPolicy: IfNotPresent
 
-# Réplicas do webserver
 replicaCount: 1
 
-# Serviço para acesso externo
 service:
   type: LoadBalancer
   port: 5678
 
-# Ingress (Traefik) para HTTPS
 ingress:
   enabled: true
   annotations:
@@ -28,12 +24,11 @@ ingress:
   tls:
     - hosts:
         - n8n.546digitalservices.com
+      secretName: n8n-tls
 
-# Queue mode e configurações de scaling
 scaling:
   enabled: true
 
-# Subchart Redis
 redis:
   enabled: true
   auth:
@@ -43,24 +38,21 @@ redis:
     persistence:
       enabled: false
       storageClass: ""
-      size: 20Gi
+      size: 8Gi
   service:
     port: 6379
     type: ClusterIP
   metrics:
     enabled: false
 
-# Chave de criptografia customizada
 config:
   encryptionKey: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK"
 
-# Instalação de nodes adicionais no container
 extraNodePackages:
   - name: "@n8n/n8n-nodes-langchain"
     installArgs:
       - "--no-save"
 
-# Workers e webhooks
 worker:
   enabled: true
 webhook:

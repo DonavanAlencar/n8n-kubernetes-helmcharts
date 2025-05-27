@@ -21,7 +21,7 @@ spec:
             - sh
             - -c
             - |
-              npm install {{ range .Values.extraNodePackages }}{{ .name }} {{ range .installArgs }}{{ . }} {{ end }}{{ end }}
+              npm install {{ range $i, $pkg := .Values.extraNodePackages }}{{ if $i }} && npm install {{ end }}$pkg.name {{ range $pkg.installArgs }} ${{ . }}{{ end }}{{ end }}
           volumeMounts:
             - name: n8n-data
               mountPath: /home/node/.n8n
