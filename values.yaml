@@ -1,14 +1,28 @@
+# values.yaml
+
+# -----------------------------------------------------------------------------
+# 1) Imagem do n8n
+# -----------------------------------------------------------------------------
 image:
   repository: n8nio/n8n
   tag: latest
   pullPolicy: IfNotPresent
 
+# -----------------------------------------------------------------------------
+# 2) Número de réplicas
+# -----------------------------------------------------------------------------
 replicaCount: 1
 
+# -----------------------------------------------------------------------------
+# 3) Service / LoadBalancer
+# -----------------------------------------------------------------------------
 service:
   type: LoadBalancer
   port: 5678
 
+# -----------------------------------------------------------------------------
+# 4) Ingress (Traefik) com TLS
+# -----------------------------------------------------------------------------
 ingress:
   enabled: true
   annotations:
@@ -26,9 +40,15 @@ ingress:
         - n8n.546digitalservices.com
       secretName: n8n-tls
 
+# -----------------------------------------------------------------------------
+# 5) Habilitar autoscaling (se você for usar)
+# -----------------------------------------------------------------------------
 scaling:
   enabled: true
 
+# -----------------------------------------------------------------------------
+# 6) Redis (para EXECUTIONS_PROCESS = queue)
+# -----------------------------------------------------------------------------
 redis:
   enabled: true
   auth:
@@ -45,15 +65,99 @@ redis:
   metrics:
     enabled: false
 
+# -----------------------------------------------------------------------------
+# 7) Chave de criptografia do n8n (vai para settings.json)
+# -----------------------------------------------------------------------------
 config:
   encryptionKey: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK"
 
+# -----------------------------------------------------------------------------
+# 8) Pacotes extras (n8n-nodes-langchain)
+# -----------------------------------------------------------------------------
 extraNodePackages:
   - name: "@n8n/n8n-nodes-langchain"
     installArgs:
       - "--no-save"
 
+# -----------------------------------------------------------------------------
+# 9) Configurações de worker/webhook (se necessário)
+# -----------------------------------------------------------------------------
 worker:
   enabled: true
 webhook:
   enabled: false
+
+# -----------------------------------------------------------------------------
+# 10) securityContext (para garantir permissão de escrita em /home/node/.n8n)
+# -----------------------------------------------------------------------------
+securityContext:
+  runAsUser: 1000
+  fsGroup: 1000
+
+# -----------------------------------------------------------------------------
+# 11) initContainers
+# -----------------------------------------------------------------------------
+initContainers:
+  fixPermissions:
+    enabled: true
+    image: busybox:1.35.0
+    command:
+      - sh
+      - "-c"
+      - |
+        echo "🔧 Ajustando permissões em /home/node/.n8n..."
+        chown -R 1000:1000 /home/node/.n8n
+    volumeMounts:
+      - name: n8n-data
+        mountPath: /home/node/.n8n
+
+  waitForRedis:
+    enabled: true
+    image: busybox:1.35.0
+    command:
+      - sh
+      - "-c"
+      - |
+        echo "⏳ Aguardando Redis ${REDIS_HOST}:${REDIS_PORT} ficar pronto..."
+        until nc -z ${REDIS_HOST} ${REDIS_PORT}; do
+          echo "Redis ainda não responde. Dormindo 3s..."
+          sleep 3
+        done
+        echo "✅ Redis está online."
+    volumeMounts: []
+
+# -----------------------------------------------------------------------------
+# 12) Variáveis do Redis (serão usadas no initContainer e no container principal)
+# -----------------------------------------------------------------------------
+redisConfig:
+  host: "{{ include "n8n.fullname" . }}-redis-master"
+  port: 6379
+
+# -----------------------------------------------------------------------------
+# 13) Probes (readiness + liveness)
+# -----------------------------------------------------------------------------
+probe:
+  readiness:
+    enabled: true
+    path: /status/ready       # ou /healthz dependendo da versão do n8n
+    port: 5678
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  liveness:
+    enabled: true
+    path: /status/ready       # ou /healthz
+    port: 5678
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 5
+
+# -----------------------------------------------------------------------------
+# 14) Persistência de dados (emptyDir por padrão; se quiser PVC, ajuste aqui)
+# -----------------------------------------------------------------------------
+persistence:
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi

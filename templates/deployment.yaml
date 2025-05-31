@@ -1,61 +1,155 @@
+# templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "n8n.fullname" . }}-deployment
   labels:
     app: {{ include "n8n.name" . }}
+    chart: {{ include "n8n.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: {{ include "n8n.name" . }}
+      release: {{ .Release.Name }}
   template:
     metadata:
       labels:
         app: {{ include "n8n.name" . }}
+        release: {{ .Release.Name }}
     spec:
+      # -------------------------------------------------------------
+      # 1) securityContext no nível do Pod para UID/GID 1000
+      # -------------------------------------------------------------
+      securityContext:
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+
+      # -------------------------------------------------------------
+      # 2) initContainers: fixPermissions e waitForRedis
+      # -------------------------------------------------------------
       initContainers:
-        - name: install-nodes
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        # 2.1) fix-permissions: garante que /home/node/.n8n seja owned por node:node (1000:1000)
+        - name: fix-permissions
+          image: {{ .Values.initContainers.fixPermissions.image }}
           command:
             - sh
-            - -c
+            - "-c"
             - |
-              # garante que o diretório exista
-              mkdir -p /home/node/.n8n
-              # instala o pacote direto nesse diretório
-              npm install --prefix /home/node/.n8n @n8n/n8n-nodes-langchain --no-save
+              echo "🔧 Ajustando permissões em /home/node/.n8n..."
+              chown -R {{ .Values.securityContext.runAsUser }}:{{ .Values.securityContext.fsGroup }} /home/node/.n8n
           volumeMounts:
             - name: n8n-data
               mountPath: /home/node/.n8n
+
+        # 2.2) wait-for-redis: só deve rodar se modo queue estiver habilitado
+        {{- if .Values.initContainers.waitForRedis.enabled }}
+        - name: wait-for-redis
+          image: {{ .Values.initContainers.waitForRedis.image }}
+          command:
+            - sh
+            - "-c"
+            - |
+              echo "⏳ Aguardando Redis {{ .Values.redisConfig.host }}:{{ .Values.redisConfig.port }} ficar pronto..."
+              until nc -z {{ .Values.redisConfig.host }} {{ .Values.redisConfig.port }}; do
+                echo "🚧 Redis ainda não responde. Dormindo 3s..."
+                sleep 3
+              done
+              echo "✅ Redis está online."
+          # Não precisa montar volumes extras aqui, mas mantive o bloco vazio
+          volumeMounts: []
+        {{- end }}
+
+      # -------------------------------------------------------------
+      # 3) Containers principais
+      # -------------------------------------------------------------
       containers:
         - name: n8n
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          # -------------------------------------------------------------
+          # 3.a) Porta que o n8n vai expor internamente (por padrão: 5678)
+          # -------------------------------------------------------------
           ports:
-            - containerPort: 5678
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+
+          # -------------------------------------------------------------
+          # 3.b) Variáveis de ambiente
+          # -------------------------------------------------------------
           env:
             - name: EXECUTIONS_PROCESS
               value: "queue"
             - name: EXECUTIONS_REDIS_HOST
-              value: "{{ include "n8n.fullname" . }}-redis-master"
+              value: "{{ .Values.redisConfig.host }}"
             - name: EXECUTIONS_REDIS_PORT
-              value: "6379"
+              value: "{{ .Values.redisConfig.port | quote }}"
             - name: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
-              value: "true"
+              value: "false"
+            - name: N8N_PORT
+              value: "{{ .Values.service.port | quote }}"
+            - name: N8N_HOST
+              value: "0.0.0.0"
+
+          # -------------------------------------------------------------
+          # 3.c) VolumeMounts
+          # -------------------------------------------------------------
           volumeMounts:
+            # 1) Monta emptyDir (ou PVC, se ativado) em /home/node/.n8n
             - name: n8n-data
               mountPath: /home/node/.n8n
-            - name: config
-              mountPath: /home/node/.n8n/config
-              subPath: config
+
+            # 2) Monta o ConfigMap apenas em /home/node/.n8n/config/settings.json
+            - name: n8n-config
+              mountPath: /home/node/.n8n/config/settings.json
+              subPath: settings.json
+
+          # -------------------------------------------------------------
+          # 3.d) ReadinessProbe
+          # -------------------------------------------------------------
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probe.readiness.path | quote }}
+              port: {{ .Values.probe.readiness.port }}
+            initialDelaySeconds: {{ .Values.probe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probe.readiness.timeoutSeconds }}
+
+          # -------------------------------------------------------------
+          # 3.e) LivenessProbe
+          # -------------------------------------------------------------
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probe.liveness.path | quote }}
+              port: {{ .Values.probe.liveness.port }}
+            initialDelaySeconds: {{ .Values.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probe.liveness.timeoutSeconds }}
+
+      # -------------------------------------------------------------
+      # 4) Volumes
+      # -------------------------------------------------------------
       volumes:
+        # 4.1) n8n-data: emptyDir ou, se persistence.enabled, pode ser PVC
         - name: n8n-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+          {{- else }}
           emptyDir: {}
-        - name: config
+          {{- end }}
+
+        # 4.2) n8n-config: ConfigMap que contém settings.json
+        - name: n8n-config
           configMap:
             name: {{ include "n8n.fullname" . }}-config
             defaultMode: 0600
+            # O arquivo do ConfigMap se chama settings.json, que será mapeado
+            # pelo subPath no volumeMount
             items:
-              - key: config
-                path: config
+              - key: settings.json
+                path: settings.json

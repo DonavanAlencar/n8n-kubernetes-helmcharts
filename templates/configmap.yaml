@@ -1,9 +1,16 @@
+# templates/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "n8n.fullname" . }}-config
+  labels:
+    app: {{ include "n8n.name" . }}
+    chart: {{ include "n8n.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 data:
-  config: |-
+  # Esse arquivo settings.json será copiado para /home/node/.n8n/config/settings.json
+  settings.json: |-
     {
       "encryptionKey": "{{ .Values.config.encryptionKey }}"
     }
