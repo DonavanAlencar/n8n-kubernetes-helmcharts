@@ -147,7 +147,7 @@ spec:
         - name: n8n-config
           configMap:
             name: {{ include "n8n.fullname" . }}-config
-            defaultMode: 0600
+            defaultMode: 0644
             # O arquivo do ConfigMap se chama settings.json, que será mapeado
             # pelo subPath no volumeMount
             items:
