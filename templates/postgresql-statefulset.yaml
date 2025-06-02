@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "n8n.fullname" . }}-postgresql
+  labels:
+    app: {{ include "n8n.name" . }}
+    release: {{ .Release.Name }}
+spec:
+  serviceName: "{{ include "n8n.fullname" . }}-postgresql"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "n8n.name" . }}
+      component: postgresql
+  template:
+    metadata:
+      labels:
+        app: {{ include "n8n.name" . }}
+        component: postgresql
+        release: {{ .Release.Name }}
+    spec:
+      securityContext:
+        fsGroup: 999   # usuário padrão do Postgres no container
+      containers:
+        - name: postgresql
+          image: postgres:13
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresql.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgresql.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresql.database | quote }}
+          volumeMounts:
+            - name: postgredata
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 1024Mi
+              cpu: 1000m
+  volumeClaimTemplates:
+    - metadata:
+        name: postgredata
+        labels:
+          app: {{ include "n8n.name" . }}
+          component: postgresql
+          release: {{ .Release.Name }}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.persistence.size | quote }}
+        storageClassName: {{ .Values.postgresql.persistence.storageClass }}

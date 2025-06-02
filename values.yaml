@@ -1,28 +1,55 @@
-# values.yaml
+# ==========================
+# Bloco de Postgres
+# ==========================
+postgresql:
+  enabled: true
+  username: n8nuser
+  password: "VhB1knK#2vgVkbnyyc%p%hB#aCx"
+  database: n8ndb
 
-# -----------------------------------------------------------------------------
-# 1) Imagem do n8n
-# -----------------------------------------------------------------------------
+  # Persistência do Postgres. storageClass="" utiliza o default do cluster.
+  # Se você tiver um SC dinâmico como "longhorn", substitua "" por "longhorn".
+  persistence:
+    storageClass: ""
+    size: "10Gi"
+
+  config:
+    postgres_conf: |
+      max_connections = 1000
+      shared_buffers = 512MB
+      work_mem = 64MB
+      maintenance_work_mem = 128MB
+      wal_level = replica
+      synchronous_commit = on
+      checkpoint_timeout = 15min
+      autovacuum = on
+      log_autovacuum_min_duration = 0
+    pg_hba_conf: |
+      local   all             all                                     peer
+      host    all             all             127.0.0.1/32            md5
+      host    all             all             ::1/128                 md5
+      host    all             all             0.0.0.0/0               md5
+
+# ==========================
+# Imagem do n8n e réplicas
+# ==========================
 image:
   repository: n8nio/n8n
   tag: latest
   pullPolicy: IfNotPresent
 
-# -----------------------------------------------------------------------------
-# 2) Número de réplicas
-# -----------------------------------------------------------------------------
 replicaCount: 1
 
-# -----------------------------------------------------------------------------
-# 3) Service / LoadBalancer
-# -----------------------------------------------------------------------------
+# ==========================
+# Service / LoadBalancer
+# ==========================
 service:
   type: LoadBalancer
   port: 5678
 
-# -----------------------------------------------------------------------------
-# 4) Ingress (Traefik) com TLS
-# -----------------------------------------------------------------------------
+# ==========================
+# Ingress (Traefik/TLS)
+# ==========================
 ingress:
   enabled: true
   annotations:
@@ -40,124 +67,101 @@ ingress:
         - n8n.546digitalservices.com
       secretName: n8n-tls
 
-# -----------------------------------------------------------------------------
-# 5) Habilitar autoscaling (se você for usar)
-# -----------------------------------------------------------------------------
+# ==========================
+# Habilitar Autoscaling
+# ==========================
 scaling:
   enabled: true
 
-# -----------------------------------------------------------------------------
-# 6) Redis (para EXECUTIONS_PROCESS = queue)
-# -----------------------------------------------------------------------------
+# ==========================
+# Redis (para EXECUTIONS_PROCESS=queue)
+# ==========================
 redis:
   enabled: true
   auth:
-    enabled: false
+    enabled: true
+    password: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK"
   architecture: standalone
   master:
     persistence:
       enabled: false
       storageClass: ""
-      size: 8Gi
+      size: "16Gi"
   service:
     port: 6379
     type: ClusterIP
   metrics:
     enabled: false
 
-# -----------------------------------------------------------------------------
-# 7) Chave de criptografia do n8n (vai para settings.json)
-# -----------------------------------------------------------------------------
+# ==========================
+# Configurações do n8n (encryptionKey)
+# ==========================
 config:
   encryptionKey: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK"
 
-# -----------------------------------------------------------------------------
-# 8) Pacotes extras (n8n-nodes-langchain)
-# -----------------------------------------------------------------------------
+# ==========================
+# Pacotes extras (n8n-nodes-langchain)
+# ==========================
 extraNodePackages:
   - name: "@n8n/n8n-nodes-langchain"
     installArgs:
       - "--no-save"
 
-# -----------------------------------------------------------------------------
-# 9) Configurações de worker/webhook (se necessário)
-# -----------------------------------------------------------------------------
+# ==========================
+# Worker / Webhook
+# ==========================
 worker:
   enabled: true
 webhook:
   enabled: false
 
-# -----------------------------------------------------------------------------
-# 10) securityContext (para garantir permissão de escrita em /home/node/.n8n)
-# -----------------------------------------------------------------------------
+# ==========================
+# securityContext para UID/GID 1000
+# (permite gravar em /home/node/.n8n)
+# ==========================
 securityContext:
   runAsUser: 1000
   fsGroup: 1000
 
-# -----------------------------------------------------------------------------
-# 11) initContainers
-# -----------------------------------------------------------------------------
+# ==========================
+# initContainers
+# ==========================
 initContainers:
   fixPermissions:
     enabled: true
     image: busybox:1.35.0
-    command:
-      - sh
-      - "-c"
-      - |
-        echo "🔧 Ajustando permissões em /home/node/.n8n..."
-        chown -R 1000:1000 /home/node/.n8n
-    volumeMounts:
-      - name: n8n-data
-        mountPath: /home/node/.n8n
-
   waitForRedis:
     enabled: true
     image: busybox:1.35.0
-    command:
-      - sh
-      - "-c"
-      - |
-        echo "⏳ Aguardando Redis ${REDIS_HOST}:${REDIS_PORT} ficar pronto..."
-        until nc -z ${REDIS_HOST} ${REDIS_PORT}; do
-          echo "Redis ainda não responde. Dormindo 3s..."
-          sleep 3
-        done
-        echo "✅ Redis está online."
-    volumeMounts: []
 
-# -----------------------------------------------------------------------------
-# 12) Variáveis do Redis (serão usadas no initContainer e no container principal)
-# -----------------------------------------------------------------------------
+# ==========================
+# Variáveis do Redis
+# ==========================
 redisConfig:
-  host: "{{ include "n8n.fullname" . }}-redis-master"
+  host: "{{ .Release.Name }}-redis-master"
   port: 6379
 
-# -----------------------------------------------------------------------------
-# 13) Probes (readiness + liveness)
-# -----------------------------------------------------------------------------
+# ==========================
+# Probes (readiness + liveness)
+# ==========================
 probe:
   readiness:
-    enabled: true
-    path: /status/ready       # ou /healthz dependendo da versão do n8n
+    path: /status/ready
     port: 5678
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
-
   liveness:
-    enabled: true
-    path: /status/ready       # ou /healthz
+    path: /status/ready
     port: 5678
     initialDelaySeconds: 60
     periodSeconds: 30
     timeoutSeconds: 5
 
-# -----------------------------------------------------------------------------
-# 14) Persistência de dados (emptyDir por padrão; se quiser PVC, ajuste aqui)
-# -----------------------------------------------------------------------------
+# ==========================
+# Persistência do n8n (PVC para /home/node/.n8n)
+# ==========================
 persistence:
-  enabled: false
+  # "" → utilizar StorageClass Default do cluster (ou deixe "longhorn" se existir)
   storageClass: ""
-  accessMode: ReadWriteOnce
-  size: 10Gi
+  size: "5Gi"
