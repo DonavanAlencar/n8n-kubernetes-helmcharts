@@ -349,7 +349,7 @@ spec:
         fsGroup: 1000
 
       initContainers:
-        # 1) Ajusta só permissões de /home/node/.n8n
+        # 1) Ajusta permissões de /home/node/.n8n
         - name: fix-permissions
           image: busybox:1.35.0
           command:
@@ -362,7 +362,7 @@ spec:
             - name: n8n-data
               mountPath: /home/node/.n8n
 
-        # 2) Aguarda só o Redis (se habilitado)
+        # 2) Aguarda o Redis ficar pronto (se habilitado)
         - name: wait-for-redis
           image: busybox:1.35.0
           command:
@@ -385,7 +385,7 @@ spec:
             - name: EXECUTIONS_PROCESS
               value: "queue"
             - name: EXECUTIONS_REDIS_HOST
-              value: "{{ .Release.Name }}-redis-master"
+              value: "n8n-my-n8n-redis-master"
             - name: EXECUTIONS_REDIS_PORT
               value: "6379"
             - name: DB_TYPE

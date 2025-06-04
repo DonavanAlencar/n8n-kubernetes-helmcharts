@@ -24,7 +24,7 @@ spec:
         fsGroup: {{ .Values.securityContext.fsGroup }}
 
       initContainers:
-        # 1) Ajusta só permissões de /home/node/.n8n
+        # 1) Ajusta permissões de /home/node/.n8n
         - name: fix-permissions
           image: {{ .Values.initContainers.fixPermissions.image }}
           command:
@@ -37,7 +37,7 @@ spec:
             - name: n8n-data
               mountPath: /home/node/.n8n
 
-        # 2) Aguarda só o Redis (se habilitado)
+        # 2) Aguarda o Redis ficar pronto (se habilitado)
         {{- if .Values.initContainers.waitForRedis.enabled }}
         - name: wait-for-redis
           image: {{ .Values.initContainers.waitForRedis.image }}
@@ -45,8 +45,8 @@ spec:
             - "sh"
             - "-c"
             - >
-              echo "⏳ Aguardando Redis {{ .Values.redisConfig.host }}:{{ .Values.redisConfig.port }}...";
-              until nc -z {{ .Values.redisConfig.host }} {{ .Values.redisConfig.port }}; do sleep 3; done
+              echo "⏳ Aguardando Redis {{ tpl .Values.redisConfig.host . }}:{{ .Values.redisConfig.port }}...";
+              until nc -z {{ tpl .Values.redisConfig.host . }} {{ .Values.redisConfig.port }}; do sleep 3; done
           volumeMounts: []
         {{- end }}
 
@@ -62,7 +62,7 @@ spec:
             - name: EXECUTIONS_PROCESS
               value: "queue"
             - name: EXECUTIONS_REDIS_HOST
-              value: {{ .Values.redisConfig.host | quote }}
+              value: {{ (include "n8n.fullname" .) | printf "%s-redis-master" | quote }}
             - name: EXECUTIONS_REDIS_PORT
               value: {{ .Values.redisConfig.port | quote }}
             - name: DB_TYPE
