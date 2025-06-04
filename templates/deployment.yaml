@@ -48,6 +48,15 @@ spec:
               echo "⏳ Aguardando Redis {{ tpl .Values.redisConfig.host . }}:{{ .Values.redisConfig.port }}...";
               until nc -z {{ tpl .Values.redisConfig.host . }} {{ .Values.redisConfig.port }}; do sleep 3; done
           volumeMounts: []
+        - name: wait-for-postgres
+          image: busybox:1.35.0
+          command:
+            - "sh"
+            - "-c"
+            - >
+              echo "⏳ Aguardando PostgreSQL n8n-my-n8n-postgresql:5432...";
+              until nc -z n8n-my-n8n-postgresql 5432; do sleep 3; done
+          volumeMounts: []
         {{- end }}
 
       containers:

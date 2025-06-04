@@ -369,8 +369,8 @@ spec:
             - "sh"
             - "-c"
             - >
-              echo "⏳ Aguardando Redis {{ .Release.Name }}-redis-master:6379...";
-              until nc -z {{ .Release.Name }}-redis-master 6379; do sleep 3; done
+              echo "⏳ Aguardando Redis my-n8n-redis-master:6379...";
+              until nc -z my-n8n-redis-master 6379; do sleep 3; done
           volumeMounts: []
 
       containers:
