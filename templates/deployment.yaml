@@ -24,21 +24,22 @@ spec:
         fsGroup: {{ .Values.securityContext.fsGroup }}
 
       initContainers:
-        # Ajusta permissões de /home/node/.n8n
+        # 1) Ajusta permissões de /home/node/.n8n
         - name: fix-permissions
           image: {{ .Values.initContainers.fixPermissions.image }}
           command:
             - sh
             - -c
             - >
-              echo "🔧 Ajustando permissões em /home/node/.n8n...";
+              echo "⏳ Aguardando Redis my-n8n-redis-master:6379..."; until nc -z {{ .Values.redisConfig.host }} {{ .Values.redisConfig.port }}; do sleep 3; done
               mkdir -p /home/node/.n8n;
+              chown -R 1000:1000 /home/node/.n8n || true
               chown -R {{ .Values.securityContext.runAsUser }}:{{ .Values.securityContext.fsGroup }} /home/node/.n8n || true
           volumeMounts:
             - name: n8n-data
               mountPath: /home/node/.n8n
 
-        # Aguardando Redis, se habilitado
+        # 2) Aguarda o Redis ficar pronto (se habilitado)
         {{- if .Values.initContainers.waitForRedis.enabled }}
         - name: wait-for-redis
           image: {{ .Values.initContainers.waitForRedis.image }}
@@ -46,6 +47,7 @@ spec:
             - sh
             - -c
             - >
+              echo "🔧 Ajustando permissões em /home/node/.n8n...";
               echo "⏳ Aguardando Redis {{ .Values.redisConfig.host }}:{{ .Values.redisConfig.port }}...";
               until nc -z {{ .Values.redisConfig.host }} {{ .Values.redisConfig.port }}; do sleep 3; done
           volumeMounts: []
