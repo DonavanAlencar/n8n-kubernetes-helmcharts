@@ -1,0 +1,680 @@
+---
+# Source: n8n/charts/redis/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: my-n8n-redis
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: n8n/charts/redis/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-n8n-redis
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  redis-password: "MUI2a1BteXNHR29OQktudkd1dWVKMzIyMnUxellCT0s="
+---
+# Source: n8n/charts/redis/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-n8n-redis-configuration
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+data:
+  redis.conf: |-
+    # User-supplied common configuration:
+    # Enable AOF https://redis.io/topics/persistence#append-only-file
+    appendonly yes
+    # Disable RDB persistence, AOF persistence already enabled.
+    save ""
+    # End of common configuration
+  master.conf: |-
+    dir /data
+    # User-supplied master configuration:
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+    # End of master configuration
+  replica.conf: |-
+    dir /data
+    # User-supplied replica configuration:
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+    # End of replica configuration
+---
+# Source: n8n/charts/redis/templates/health-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-n8n-redis-health
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+data:
+  ping_readiness_local.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_PASSWORD_FILE ]] && export REDIS_PASSWORD="$(< "${REDIS_PASSWORD_FILE}")"
+    [[ -n "$REDIS_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_local.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_PASSWORD_FILE ]] && export REDIS_PASSWORD="$(< "${REDIS_PASSWORD_FILE}")"
+    [[ -n "$REDIS_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    responseFirstWord=$(echo $response | head -n1 | awk '{print $1;}')
+    if [ "$response" != "PONG" ] && [ "$responseFirstWord" != "LOADING" ] && [ "$responseFirstWord" != "MASTERDOWN" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_readiness_master.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_MASTER_PASSWORD_FILE ]] && export REDIS_MASTER_PASSWORD="$(< "${REDIS_MASTER_PASSWORD_FILE}")"
+    [[ -n "$REDIS_MASTER_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_MASTER_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_master.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_MASTER_PASSWORD_FILE ]] && export REDIS_MASTER_PASSWORD="$(< "${REDIS_MASTER_PASSWORD_FILE}")"
+    [[ -n "$REDIS_MASTER_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_MASTER_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    responseFirstWord=$(echo $response | head -n1 | awk '{print $1;}')
+    if [ "$response" != "PONG" ] && [ "$responseFirstWord" != "LOADING" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_readiness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_readiness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_readiness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+  ping_liveness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_liveness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_liveness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+---
+# Source: n8n/charts/redis/templates/scripts-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-n8n-redis-scripts
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+data:
+  start-master.sh: |
+    #!/bin/bash
+
+    [[ -f $REDIS_PASSWORD_FILE ]] && export REDIS_PASSWORD="$(< "${REDIS_PASSWORD_FILE}")"
+    if [[ -f /opt/bitnami/redis/mounted-etc/master.conf ]];then
+        cp /opt/bitnami/redis/mounted-etc/master.conf /opt/bitnami/redis/etc/master.conf
+    fi
+    if [[ -f /opt/bitnami/redis/mounted-etc/redis.conf ]];then
+        cp /opt/bitnami/redis/mounted-etc/redis.conf /opt/bitnami/redis/etc/redis.conf
+    fi
+    ARGS=("--port" "${REDIS_PORT}")
+    ARGS+=("--requirepass" "${REDIS_PASSWORD}")
+    ARGS+=("--masterauth" "${REDIS_PASSWORD}")
+    ARGS+=("--include" "/opt/bitnami/redis/etc/redis.conf")
+    ARGS+=("--include" "/opt/bitnami/redis/etc/master.conf")
+    exec redis-server "${ARGS[@]}"
+---
+# Source: n8n/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-my-n8n-config
+  labels:
+    app: n8n
+    chart: "n8n-0.3.2"
+    release: my-n8n
+    heritage: Helm
+data:
+  # Esse arquivo settings.json será copiado para /home/node/.n8n/config/settings.json
+  settings.json: |-
+    {
+      "encryptionKey": "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK"
+    }
+---
+# Source: n8n/templates/postgresql-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-my-n8n-postgresql-config
+  labels:
+    app: n8n
+    release: my-n8n
+---
+# Source: n8n/templates/n8n-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-my-n8n-n8n-pvc
+  labels:
+    app: n8n
+    component: n8n
+    release: my-n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: 
+  resources:
+    requests:
+      storage: "5Gi"
+---
+# Source: n8n/charts/redis/templates/headless-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-n8n-redis-headless
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: tcp-redis
+      port: 6379
+      targetPort: redis
+  selector:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: my-n8n
+---
+# Source: n8n/charts/redis/templates/master/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-n8n-redis-master
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: master
+spec:
+  type: ClusterIP
+  internalTrafficPolicy: Cluster
+  sessionAffinity: None
+  ports:
+    - name: tcp-redis
+      port: 6379
+      targetPort: redis
+      nodePort: null
+  selector:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/component: master
+---
+# Source: n8n/templates/postgresql-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-my-n8n-postgresql
+  labels:
+    app: n8n
+    chart: "n8n-0.3.2"
+    release: my-n8n
+    heritage: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      name: postgres
+  selector:
+    app: n8n
+    component: postgresql
+---
+# Source: n8n/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-my-n8n-service
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 5678
+      targetPort: 5678
+      protocol: TCP
+      name: http
+  selector:
+    app: n8n
+---
+# Source: n8n/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-my-n8n-deployment
+  labels:
+    app: n8n
+    chart: "n8n-0.3.2"
+    release: my-n8n
+    heritage: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+      release: my-n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+        release: my-n8n
+    spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+
+      initContainers:
+        # 1) Ajusta só permissões de /home/node/.n8n
+        - name: fix-permissions
+          image: busybox:1.35.0
+          command:
+            - "sh"
+            - "-c"
+            - >
+              mkdir -p /home/node/.n8n;
+              chown -R 1000:1000 /home/node/.n8n || true
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+
+        # 2) Aguarda só o Redis (se habilitado)
+        - name: wait-for-redis
+          image: busybox:1.35.0
+          command:
+            - "sh"
+            - "-c"
+            - >
+              echo "⏳ Aguardando Redis {{ .Release.Name }}-redis-master:6379...";
+              until nc -z {{ .Release.Name }}-redis-master 6379; do sleep 3; done
+          volumeMounts: []
+
+      containers:
+        - name: n8n
+          image: "n8nio/n8n:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5678
+              protocol: TCP
+          env:
+            - name: EXECUTIONS_PROCESS
+              value: "queue"
+            - name: EXECUTIONS_REDIS_HOST
+              value: "{{ .Release.Name }}-redis-master"
+            - name: EXECUTIONS_REDIS_PORT
+              value: "6379"
+            - name: DB_TYPE
+              value: "postgresdb"
+            - name: DB_POSTGRESDB_HOST
+              value: "n8n-my-n8n-postgresql"
+            - name: DB_POSTGRESDB_PORT
+              value: "5432"
+            - name: DB_POSTGRESDB_DATABASE
+              value: "n8ndb"
+            - name: DB_POSTGRESDB_USER
+              value: "n8nuser"
+            - name: DB_POSTGRESDB_PASSWORD
+              value: "VhB1knK#2vgVkbnyyc%p%hB#aCx"
+            - name: N8N_DATABASE_MIGRATE
+              value: "true"
+            - name: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+              value: "false"
+            - name: N8N_PORT
+              value: "5678"
+            - name: N8N_HOST
+              value: "0.0.0.0"
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+            - name: n8n-config
+              mountPath: /home/node/.n8n/config/settings.json
+              subPath: settings.json
+          readinessProbe:
+            httpGet:
+              path: "/status/ready"
+              port: 5678
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: "/status/ready"
+              port: 5678
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+
+      volumes:
+        - name: n8n-data
+          persistentVolumeClaim:
+            claimName: n8n-my-n8n-n8n-pvc
+        - name: n8n-config
+          configMap:
+            name: n8n-my-n8n-config
+            defaultMode: 0644
+            items:
+              - key: settings.json
+                path: settings.json
+---
+# Source: n8n/charts/redis/templates/master/application.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: my-n8n-redis-master
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: my-n8n
+      app.kubernetes.io/component: master
+  serviceName: my-n8n-redis-headless
+  updateStrategy:
+    rollingUpdate: {}
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        helm.sh/chart: redis-17.1.6
+        app.kubernetes.io/instance: my-n8n
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: master
+      annotations:
+        checksum/configmap: c297a0550ad6aa4a9eccdefc66fbed081681d33fefaf3f67fc6d70e5db2c0523
+        checksum/health: d2e4354a74610d28090bd542a1f9b7c6f601fb416f2650b9dc57270d969497ef
+        checksum/scripts: f786096e52db4d50f8273630686d679c8c92290d618c849bed8ff01867b01275
+        checksum/secret: cdd911a1c60b56ea3235c8ca7af9a4c1f8821cc4ad3b89ad87d88c2e06f81ab7
+    spec:
+      
+      securityContext:
+        fsGroup: 1001
+      serviceAccountName: my-n8n-redis
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: redis
+                    app.kubernetes.io/instance: my-n8n
+                    app.kubernetes.io/component: master
+                namespaces:
+                  - "automacao546"
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: redis
+          image: docker.io/bitnami/redis:7.0.4-debian-11-r23
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            runAsUser: 1001
+          command:
+            - /bin/bash
+          args:
+            - -c
+            - /opt/bitnami/scripts/start-scripts/start-master.sh
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: REDIS_REPLICATION_MODE
+              value: master
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "no"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-n8n-redis
+                  key: redis-password
+            - name: REDIS_TLS_ENABLED
+              value: "no"
+            - name: REDIS_PORT
+              value: "6379"
+          ports:
+            - name: redis
+              containerPort: 6379
+          livenessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            # One second longer than command timeout should prevent generation of zombie processes.
+            timeoutSeconds: 6
+            successThreshold: 1
+            failureThreshold: 5
+            exec:
+              command:
+                - sh
+                - -c
+                - /health/ping_liveness_local.sh 5
+          readinessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 5
+            exec:
+              command:
+                - sh
+                - -c
+                - /health/ping_readiness_local.sh 1
+          resources:
+            limits: {}
+            requests: {}
+          volumeMounts:
+            - name: start-scripts
+              mountPath: /opt/bitnami/scripts/start-scripts
+            - name: health
+              mountPath: /health
+            - name: redis-data
+              mountPath: /data
+              subPath: 
+            - name: config
+              mountPath: /opt/bitnami/redis/mounted-etc
+            - name: redis-tmp-conf
+              mountPath: /opt/bitnami/redis/etc/
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: start-scripts
+          configMap:
+            name: my-n8n-redis-scripts
+            defaultMode: 0755
+        - name: health
+          configMap:
+            name: my-n8n-redis-health
+            defaultMode: 0755
+        - name: config
+          configMap:
+            name: my-n8n-redis-configuration
+        - name: redis-tmp-conf
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: redis-data
+          emptyDir: {}
+---
+# Source: n8n/templates/postgresql-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: n8n-my-n8n-postgresql
+  labels:
+    app: n8n
+    release: my-n8n
+spec:
+  serviceName: "n8n-my-n8n-postgresql"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+      component: postgresql
+  template:
+    metadata:
+      labels:
+        app: n8n
+        component: postgresql
+        release: my-n8n
+    spec:
+      securityContext:
+        fsGroup: 999   # usuário padrão do Postgres no container
+      containers:
+        - name: postgresql
+          image: postgres:13
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: "n8nuser"
+            - name: POSTGRES_PASSWORD
+              value: "VhB1knK#2vgVkbnyyc%p%hB#aCx"
+            - name: POSTGRES_DB
+              value: "n8ndb"
+          volumeMounts:
+            - name: postgredata
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 1024Mi
+              cpu: 1000m
+  volumeClaimTemplates:
+    - metadata:
+        name: postgredata
+        labels:
+          app: n8n
+          component: postgresql
+          release: my-n8n
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: "10Gi"
+        storageClassName: local-path
+---
+# Source: n8n/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n-my-n8n-ingress
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/router.entrypoints: "web,websecure"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: "le"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - n8n.546digitalservices.com
+      secretName: n8n-tls
+  rules:
+    - host: n8n.546digitalservices.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n-my-n8n-service
+                port:
+                  number: 5678
