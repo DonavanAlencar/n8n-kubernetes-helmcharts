@@ -1,41 +1,41 @@
-# Valores Globais (se necessário, podem ser acessados por subcharts via .Values.global)
-# global:
-#   storageClass: "local-path"
-
 # Configurações do subchart n8n
 n8n:
-  # fullnameOverride: auto546-n8n # Você está setando isso via comando, o que é bom
+  # fullnameOverride: auto546-n8n # Você está setando via comando
 
   image:
     repository: n8nio/n8n
-    tag: "latest" # Considere usar uma tag específica como "1.46.0"
+    tag: "1.46.0" # RECOMENDADO: Use uma tag específica em vez de "latest"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
 
   config:
-    webhookUrl: "https://n8n.546digitalservices.com"
+    webhookUrl: "https://n8n.546digitalservices.com" # Obrigatório
     timezone: "America/Sao_Paulo"
     nodeEnv: "production"
-    executionsMode: "regular"
-    encryptionKey: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK" # EXEMPLO - MUDE ISSO PARA PRODUÇÃO
+    executionsMode: "queue"
+    executionsProcess: "main"
+
+    # **MUITO IMPORTANTE:** Use uma chave forte e única. Guarde-a em segurança.
+    # Esta chave será usada para criar um Secret, que o deployment.yaml do n8n usará.
+    encryptionKey: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK!"
+    # Se você já tiver um secret com a chave de criptografia:
+    # existingEncryptionKeySecret: "meu-secret-com-a-encryption-key-do-n8n"
+    # encryptionKeySecretKey: "n8n-encryption-key" # Chave dentro do secret existente
+
     extraEnvVars: []
-    extraArgs: [] # Args extras para o comando "n8n start"
+    # - name: N8N_LOG_LEVEL
+    #   value: "debug"
 
   extraNodePackages:
     - name: "@n8n/n8n-nodes-langchain"
       installArgs:
         - "--no-save"
 
-  # Configuração de um ConfigMap para settings.json (opcional)
-  configMap:
-    enabled: false # Mantenha false se não for usar, ou true se for.
-    # name: "" # Deixe em branco para nome gerado automaticamente
-    # defaultMode: 420 # 0644 em decimal
-    # settings: | # Conteúdo do settings.json
-    #   {
-    #     "exampleSetting": "exampleValue"
-    #   }
+  configMap: # Para settings.json customizado, se necessário
+    enabled: false
+    # settings: |
+    #   { "someCustomN8nSetting": true }
 
   service:
     type: LoadBalancer
@@ -45,6 +45,10 @@ n8n:
   ingress:
     enabled: true
     className: "traefik"
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      traefik.ingress.kubernetes.io/router.tls.certresolver: "le"
     hosts:
       - host: n8n.546digitalservices.com
         paths:
@@ -56,58 +60,70 @@ n8n:
           - n8n.546digitalservices.com
 
   autoscaling:
-    enabled: false # Você está setando para true via comando
+    enabled: true # Você está sobrescrevendo via --set
     minReplicas: 1
     maxReplicas: 3
     targetCPUUtilizationPercentage: 70
 
   persistence:
     enabled: true
-    storageClass: "local-path"
-    size: "5Gi"
+    storageClass: "local-path" # Você está sobrescrevendo via --set
+    size: "5Gi"                # Você está sobrescrevendo via --set
 
   podSecurityContext:
-    fsGroup: 1000
-    runAsUser: 1000
-    runAsGroup: 1000
-    runAsNonRoot: true
+    fsGroup: 1000       # Você está sobrescrevendo via --set
+    runAsUser: 1000     # Você está sobrescrevendo via --set
+    runAsGroup: 1000    # Você está sobrescrevendo via --set
+    runAsNonRoot: true  # Você está sobrescrevendo via --set
 
   initContainers:
     fixPermissions:
-      enabled: false # Você está setando via comando
+      enabled: false # Você está sobrescrevendo via --set
       image:
         repository: "busybox"
         tag: "1.36.1"
-        pullPolicy: IfNotPresent
 
   livenessProbe:
-    httpGet:
-      path: "/healthz"
-      port: http
-    initialDelaySeconds: 60
+    httpGet: { path: "/healthz", port: http }
+    initialDelaySeconds: 120
     periodSeconds: 30
-    timeoutSeconds: 5
+    timeoutSeconds: 15
+    failureThreshold: 5
 
   readinessProbe:
-    httpGet:
-      path: "/healthz"
-      port: http
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
+    httpGet: { path: "/healthz", port: http }
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 5
+
+  # Configurações para o n8n se conectar às dependências
+  externalPostgresql:
+    host: "{{ .Release.Name }}-postgresql" # Será resolvido para 'my-n8n-postgresql'
+    port: 5432
+    database: "n8ndb"   # Corresponde a postgresql.auth.database
+    username: "n8nuser" # Corresponde a postgresql.auth.username
+    existingSecret: "{{ .Release.Name }}-postgresql" # Secret criado pelo chart Bitnami PG
+    passwordSecretKey: "postgresql-password" # Chave padrão no secret do Bitnami para a senha do usuário da app
+
+  externalRedis:
+    host: "{{ .Release.Name }}-redis-master" # Será resolvido para 'my-n8n-redis-master'
+    port: 6379
+    existingSecret: "{{ .Release.Name }}-redis" # Secret criado pelo chart Bitnami Redis
+    passwordSecretKey: "redis-password" # Chave padrão no secret do Bitnami
 
 # --- Configurações do subchart PostgreSQL (Bitnami) ---
 postgresql:
-  enabled: true
+  enabled: true # Você está sobrescrevendo via --set
   auth:
-    username: "n8nuser"
-    password: "VhB1knK#2vgVkbnyyc%p%hB#aCx"
-    database: "n8ndb"
+    username: "n8nuser"   # Corresponde a n8n.externalPostgresql.username
+    password: "VhB1knK#2vgVkbnyyc%p%hB#aCx" # Senha para o usuário n8n no PG
+    database: "n8ndb"     # Corresponde a n8n.externalPostgresql.database
   primary:
     persistence:
       enabled: true
-      storageClass: "local-path"
-      size: "10Gi"
+      storageClass: "local-path" # Você está sobrescrevendo via --set
+      size: "10Gi"               # Você está sobrescrevendo via --set
 
 # --- Configurações do subchart Redis (Bitnami) ---
 redis:
@@ -115,7 +131,7 @@ redis:
   architecture: "standalone"
   auth:
     enabled: true
-    password: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK" # EXEMPLO - MUDE ISSO
+    password: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK" # Senha para o Redis
   master:
     persistence:
       enabled: false

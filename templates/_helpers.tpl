@@ -63,9 +63,14 @@ apps/v1beta2
 
 {{/*
 Return the appropriate apiVersion for HPA.
+Allows overriding via .Values.autoscaling.apiVersion
 */}}
 {{- define "n8n.hpa.apiVersion" -}}
-{{- if semverCompare ">=1.23-0" .Capabilities.KubeVersion.GitVersion -}}
+{{- $hpaValues := .Values.autoscaling | default dict -}}
+{{- $apiVersion := $hpaValues.apiVersion | default "" -}}
+{{- if $apiVersion -}}
+    {{- $apiVersion -}}
+{{- else if semverCompare ">=1.23-0" .Capabilities.KubeVersion.GitVersion -}}
 autoscaling/v2
 {{- else -}}
 autoscaling/v2beta2
@@ -90,7 +95,7 @@ Service Account Name
 
 {{/*
 Name of the encryption key secret.
-Uses .Values.config.existingEncryptionKeySecret if provided, otherwise generates a name.
+Uses .Values.config.existingEncryptionKeySecret if provided from parent, otherwise generates a name.
 */}}
 {{- define "n8n.encryptionKeySecretName" -}}
 {{- $config := .Values.config | default dict -}}
@@ -99,28 +104,26 @@ Uses .Values.config.existingEncryptionKeySecret if provided, otherwise generates
 {{- end }}
 
 {{/*
-Constructs the PostgreSQL host. Assumes Bitnami PostgreSQL subchart.
-This needs to be smarter if `postgresql.fullnameOverride` is used in the parent chart
-OR if the PostgreSQL subchart has its own `fullnameOverride`.
-For now, assumes a standard naming convention.
+Constructs the PostgreSQL host.
+It will use the host defined in .Values.externalPostgresql.host (passed from parent).
+The `tpl` function is used to render any Helm templating (like {{ .Release.Name }})
+that might be present in the host value from the parent chart.
+If .Values.externalPostgresql.host is not defined, it falls back to a constructed name.
 */}}
 {{- define "n8n.postgresql.host" -}}
-  {{- $pgValues := .Values.externalPostgresql | default dict -}}
-  {{- if $pgValues.host -}}
-    {{- $pgValues.host -}}
-  {{- else -}}
-    {{- printf "%s-postgresql" .Release.Name -}}
-  {{- end -}}
+  {{- $extPg := .Values.externalPostgresql | default dict -}}
+  {{- $hostValue := $extPg.host | default (printf "%s-postgresql" .Release.Name) -}}
+  {{- tpl $hostValue . -}}
 {{- end -}}
 
 {{/*
-Constructs the Redis host. Assumes Bitnami Redis subchart.
+Constructs the Redis host.
+It will use the host defined in .Values.externalRedis.host (passed from parent).
+The `tpl` function is used to render any Helm templating.
+If .Values.externalRedis.host is not defined, it falls back to a constructed name.
 */}}
 {{- define "n8n.redis.host" -}}
-  {{- $redisValues := .Values.externalRedis | default dict -}}
-  {{- if $redisValues.host -}}
-    {{- $redisValues.host -}}
-  {{- else -}}
-    {{- printf "%s-redis-master" .Release.Name -}} {{/* Default for Bitnami standalone Redis */}}
-  {{- end -}}
-{{- end }}
+  {{- $extRedis := .Values.externalRedis | default dict -}}
+  {{- $hostValue := $extRedis.host | default (printf "%s-redis-master" .Release.Name) -}}
+  {{- tpl $hostValue . -}}
+{{- end -}}
