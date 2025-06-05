@@ -1,33 +1,31 @@
+{{- if .Values.service }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "n8n.fullname" . }}
+  name: {{ include "n8n.fullname" . }}-debugsvc
   labels:
     {{- include "n8n.labels" . | nindent 4 }}
-  {{- /* Verifica se .Values.service e .Values.service.annotations existem e são um mapa */}}
-  {{- if (and .Values.service (kindIs "map" .Values.service.annotations)) }}
-  {{- if .Values.service.annotations }}
-  annotations:
-    {{- .Values.service.annotations | toYaml | nindent 4 }}
-  {{- end }}
-  {{- end }}
+  {{- /* Removido bloco de anotações temporariamente */}}
 spec:
   type: {{ .Values.service.type | default "ClusterIP" }}
-  {{- if and (eq .Values.service.type "LoadBalancer") .Values.service.loadBalancerIP }}
-  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
-  {{- end }}
-  {{- if .Values.service.externalTrafficPolicy }}
-  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
-  {{- end }}
   ports:
-    - port: {{ .Values.service.port }}
+    - port: {{ .Values.service.port | default 5678 }}
       targetPort: http
       protocol: TCP
       name: http
-      {{- if (and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) .Values.service.nodePort) }}
-      nodePort: {{ .Values.service.nodePort }}
-      {{- else if eq .Values.service.type "ClusterIP" }}
-      nodePort: null
-      {{- end }}
   selector:
     {{- include "n8n.selectorLabels" . | nindent 4 }}
+{{- else }}
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: {{ include "n8n.fullname" . }}-debugsvc-service-values-missing
+# spec:
+#   type: ClusterIP
+#   ports:
+#     - port: 1234
+#       targetPort: 1234
+#   selector:
+#     app: fake
+# Comentado para não gerar um serviço inválido, mas para indicar no log se o .Values.service está faltando
+{{- end }}

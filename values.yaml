@@ -1,245 +1,123 @@
+# Valores Globais (se necessário, podem ser acessados por subcharts via .Values.global)
+# global:
+#   storageClass: "local-path"
+
 # Configurações do subchart n8n
 n8n:
-  fullnameOverride: "" # Se quiser um nome específico para os recursos do n8n (ex: auto546-n8n)
+  # fullnameOverride: auto546-n8n # Você está setando isso via comando, o que é bom
 
   image:
     repository: n8nio/n8n
-    tag: "latest" # Considere usar uma tag específica em vez de latest para produção
+    tag: "latest" # Considere usar uma tag específica como "1.46.0"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
 
-  # Configurações específicas do n8n App
   config:
-    webhookUrl: "https://n8n.546digitalservices.com" # URL pública do n8n
+    webhookUrl: "https://n8n.546digitalservices.com"
     timezone: "America/Sao_Paulo"
     nodeEnv: "production"
-    executionsMode: "regular" # Mude para "queue" se usar workers e Redis
-    # executionsProcess: "main" # Necessário se executionsMode for "queue"
-    # encryptionKey: "SuaChaveDeCriptografiaSuperSecretaAqui" # Será colocado em um Secret
-    # Ou use um secret existente:
-    # existingEncryptionKeySecret: "meu-secret-n8n-encryption"
-    # encryptionKeySecretKey: "encryption-key"
+    executionsMode: "regular"
+    encryptionKey: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK" # EXEMPLO - MUDE ISSO PARA PRODUÇÃO
     extraEnvVars: []
-    # - name: N8N_LOG_LEVEL
-    #   value: "info"
+    extraArgs: [] # Args extras para o comando "n8n start"
 
-  # Pacotes NPM extras para instalar
   extraNodePackages:
     - name: "@n8n/n8n-nodes-langchain"
       installArgs:
-        - "--no-save" # Adicione outros argumentos se necessário
-
-  # Defina args extras para o comando "n8n start"
-  extraArgs: []
-  #  - "--tunnel"
+        - "--no-save"
 
   # Configuração de um ConfigMap para settings.json (opcional)
-  # configMap:
-  #   enabled: false
-  #   name: "" # Deixe em branco para nome gerado automaticamente
-  #   defaultMode: 420
-  #   settings: |
-  #     {
-  #       "coolFeature": true
-  #     }
+  configMap:
+    enabled: false # Mantenha false se não for usar, ou true se for.
+    # name: "" # Deixe em branco para nome gerado automaticamente
+    # defaultMode: 420 # 0644 em decimal
+    # settings: | # Conteúdo do settings.json
+    #   {
+    #     "exampleSetting": "exampleValue"
+    #   }
 
   service:
-    type: LoadBalancer # Ou ClusterIP se usar Ingress
+    type: LoadBalancer
     port: 5678
     annotations: {}
 
   ingress:
     enabled: true
-    className: "traefik" # Corrigido de kubernetes.io/ingress.class para a anotação moderna
-    annotations:
-      # kubernetes.io/ingress.class: traefik # Anotação antiga, use ingressClassName
-      traefik.ingress.kubernetes.io/router.entrypoints: "web,websecure"
-      traefik.ingress.kubernetes.io/router.tls: "true"
-      traefik.ingress.kubernetes.io/router.tls.certresolver: "le" # Removido espaço
+    className: "traefik"
     hosts:
       - host: n8n.546digitalservices.com
         paths:
           - path: /
             pathType: Prefix
     tls:
-      - secretName: n8n-tls # Nome do secret que contém o certificado TLS
+      - secretName: n8n-tls
         hosts:
           - n8n.546digitalservices.com
 
-  # Autoscaling (HPA) - Requer metrics-server no cluster
   autoscaling:
-    enabled: false # Mantido como 'scaling.enabled' no seu comando original, mas 'autoscaling' é mais comum
+    enabled: false # Você está setando para true via comando
     minReplicas: 1
     maxReplicas: 3
     targetCPUUtilizationPercentage: 70
-    # targetMemoryUtilizationPercentage: 70
 
-  # Persistência para dados do n8n (/home/node/.n8n)
   persistence:
     enabled: true
-    # existingClaim: ""
-    storageClass: "local-path" # Use .Values.global.storageClass ou defina aqui
-    accessModes:
-      - ReadWriteOnce
+    storageClass: "local-path"
     size: "5Gi"
-    mountPath: "/home/node/.n8n"
 
-  # Security Context para o Pod (nível do Pod)
   podSecurityContext:
-    enabled: true
     fsGroup: 1000
     runAsUser: 1000
     runAsGroup: 1000
     runAsNonRoot: true
 
-  # Security Context para o Container n8n (nível do Container)
-  # Geralmente não precisa se podSecurityContext.runAsUser está definido
-  containerSecurityContext:
-    enabled: false
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+  initContainers:
+    fixPermissions:
+      enabled: false # Você está setando via comando
+      image:
+        repository: "busybox"
+        tag: "1.36.1"
+        pullPolicy: IfNotPresent
 
-  # Recursos para o pod n8n
-  resources:
-    # limits:
-    #   cpu: 1000m
-    #   memory: 1024Mi
-    requests:
-      cpu: 250m
-      memory: 512Mi
-
-  # Probes de Liveness e Readiness
   livenessProbe:
-    enabled: true
     httpGet:
-      path: "/healthz" # n8n usa /healthz
-      port: http # Nome da porta do container
+      path: "/healthz"
+      port: http
     initialDelaySeconds: 60
     periodSeconds: 30
     timeoutSeconds: 5
-    failureThreshold: 3
-    successThreshold: 1
 
   readinessProbe:
-    enabled: true
     httpGet:
       path: "/healthz"
       port: http
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
-    failureThreshold: 3
-    successThreshold: 1
 
-  # Init Containers
-  initContainers:
-    # Para ajustar permissões do volume persistente
-    fixPermissions:
-      enabled: true # Habilite se fsGroup não for suficiente ou se precisar de um chown específico
-      image:
-        repository: "busybox"
-        tag: "1.36.1"
-        pullPolicy: IfNotPresent
-      resources:
-        requests:
-          cpu: "50m"
-          memory: "50Mi"
-        limits:
-          cpu: "100m"
-          memory: "100Mi"
-
-    # Para aguardar dependências como Redis ou PostgreSQL
-    waitForDependency:
-      image: # Usado para wait-for-redis e wait-for-postgres
-        repository: "busybox"
-        tag: "1.36.1"
-        pullPolicy: IfNotPresent
-      resources:
-        requests:
-          cpu: "50m"
-          memory: "50Mi"
-        limits:
-          cpu: "100m"
-          memory: "100Mi"
-
-    # Para instalar pacotes NPM extras
-    installNodes: # usa a imagem principal do n8n
-      resources:
-        requests:
-          cpu: "100m"
-          memory: "256Mi"
-        limits:
-          cpu: "500m"
-          memory: "512Mi"
-
-# Configurações do subchart PostgreSQL (Bitnami)
+# --- Configurações do subchart PostgreSQL (Bitnami) ---
 postgresql:
   enabled: true
-  # fullnameOverride: "" # Se quiser um nome específico para os recursos do PostgreSQL
   auth:
     username: "n8nuser"
-    password: "VhB1knK#2vgVkbnyyc%p%hB#aCx" # Esta senha será usada para criar o superusuário e o usuário da aplicação
+    password: "VhB1knK#2vgVkbnyyc%p%hB#aCx"
     database: "n8ndb"
-    # existingSecret: "" # Se você já tem um secret com as credenciais
-    # secretKeys:
-    #   userPasswordKey: "postgresql-password" # Chave no secret para a senha do usuário n8n
-    #   adminPasswordKey: "postgresql-postgres-password" # Chave no secret para a senha do admin postgres
   primary:
     persistence:
       enabled: true
-      storageClass: "local-path" # Use .Values.global.storageClass ou defina aqui
+      storageClass: "local-path"
       size: "10Gi"
-    # Recursos para o pod PostgreSQL
-    # resources:
-    #   requests:
-    #     cpu: 250m
-    #     memory: 256Mi
-    #   limits:
-    #     cpu: 500m
-    #     memory: 512Mi
-    # Configurações extras do postgresql.conf
-    # extendedConf:
-    #   max_connections: "1000"
-    #   shared_buffers: "512MB"
-    #   work_mem: "64MB"
-    #   maintenance_work_mem: "128MB"
-    #   wal_level: "replica"
-    #   synchronous_commit: "on"
-    #   checkpoint_timeout: "15min"
-    #   autovacuum: "on"
-    #   log_autovacuum_min_duration: "0"
-    # Configurações extras do pg_hba.conf
-    # pgHbaConfiguration: |
-    #   local   all             all                                     peer
-    #   host    all             all             127.0.0.1/32            md5
-    #   host    all             all             ::1/128                 md5
-    #   host    all             all             0.0.0.0/0               md5
 
-# Configurações do subchart Redis (Bitnami)
+# --- Configurações do subchart Redis (Bitnami) ---
 redis:
-  enabled: true # Habilite se n8n.config.executionsMode for "queue"
-  # fullnameOverride: ""
-  architecture: "standalone" # "replication" para setup com master/slave
+  enabled: true
+  architecture: "standalone"
   auth:
     enabled: true
-    password: "SuaSenhaSuperSeguraParaORedisAqui" # Será usada para criar o secret do Redis
-    # existingSecret: ""
-    # existingSecretPasswordKey: "redis-password"
-  master: # Para arquitetura standalone
+    password: "1B6kPmysGGoNBKnvGuueJ3222u1zYBOK" # EXEMPLO - MUDE ISSO
+  master:
     persistence:
-      enabled: false # Habilite para persistir dados do Redis
-      storageClass: "local-path" # Use .Values.global.storageClass ou defina aqui
-      size: "8Gi"
-    # resources: {}
-  # replica: # Para arquitetura replication
-    # replicaCount: 1
-    # persistence:
-    #   enabled: false
-    # resources: {}
+      enabled: false
   metrics:
     enabled: false

@@ -1,1 +1,1214 @@
+Release "my-n8n" does not exist. Installing it now.
+NAME: my-n8n
+LAST DEPLOYED: Thu Jun  5 19:51:02 2025
+NAMESPACE: automacao546
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+USER-SUPPLIED VALUES:
+fullnameOverride: auto546-n8n
+n8n:
+  autoscaling:
+    enabled: true
+    maxReplicas: 3
+    minReplicas: 1
+    targetCPUUtilizationPercentage: 70
+  config:
+    encryptionKey: SuaChaveSuperSeguraDefinidaAqui
+    executionsMode: regular
+    extraArgs: []
+    extraEnvVars: []
+    nodeEnv: production
+    timezone: America/Sao_Paulo
+    webhookUrl: https://n8n.546digitalservices.com
+  configMap:
+    enabled: false
+  externalPostgresql:
+    database: n8ndb
+    existingSecret: my-n8n-postgresql
+    host: my-n8n-postgresql
+    port: 5432
+    username: n8nuser
+  extraNodePackages:
+  - installArgs:
+    - --no-save
+    name: '@n8n/n8n-nodes-langchain'
+  image:
+    pullPolicy: IfNotPresent
+    repository: n8nio/n8n
+    tag: latest
+  ingress:
+    className: traefik
+    enabled: true
+    hosts:
+    - host: n8n.546digitalservices.com
+      paths:
+      - path: /
+        pathType: Prefix
+    tls:
+    - hosts:
+      - n8n.546digitalservices.com
+      secretName: n8n-tls
+  initContainers:
+    fixPermissions:
+      enabled: false
+      image:
+        pullPolicy: IfNotPresent
+        repository: busybox
+        tag: 1.36.1
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 5
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: local-path
+  podSecurityContext:
+    fsGroup: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+  replicaCount: 1
+  service:
+    annotations: {}
+    port: 5678
+    type: LoadBalancer
+postgresql:
+  auth:
+    database: n8ndb
+    password: VhB1knK#2vgVkbnyyc%p%hB#aCx
+    username: n8nuser
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: local-path
+redis:
+  architecture: standalone
+  auth:
+    enabled: true
+    password: 1B6kPmysGGoNBKnvGuueJ3222u1zYBOK
+  enabled: true
+  master:
+    persistence:
+      enabled: false
+  metrics:
+    enabled: false
+
+COMPUTED VALUES:
+fullnameOverride: auto546-n8n
+n8n:
+  autoscaling:
+    enabled: true
+    maxReplicas: 3
+    minReplicas: 1
+    targetCPUUtilizationPercentage: 70
+  config:
+    encryptionKey: SuaChaveSuperSeguraDefinidaAqui
+    executionsMode: regular
+    extraArgs: []
+    extraEnvVars: []
+    nodeEnv: production
+    timezone: America/Sao_Paulo
+    webhookUrl: https://n8n.546digitalservices.com
+  configMap:
+    enabled: false
+  externalPostgresql:
+    database: n8ndb
+    existingSecret: my-n8n-postgresql
+    host: my-n8n-postgresql
+    port: 5432
+    username: n8nuser
+  extraNodePackages:
+  - installArgs:
+    - --no-save
+    name: '@n8n/n8n-nodes-langchain'
+  image:
+    pullPolicy: IfNotPresent
+    repository: n8nio/n8n
+    tag: latest
+  ingress:
+    className: traefik
+    enabled: true
+    hosts:
+    - host: n8n.546digitalservices.com
+      paths:
+      - path: /
+        pathType: Prefix
+    tls:
+    - hosts:
+      - n8n.546digitalservices.com
+      secretName: n8n-tls
+  initContainers:
+    fixPermissions:
+      enabled: false
+      image:
+        pullPolicy: IfNotPresent
+        repository: busybox
+        tag: 1.36.1
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 5
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: local-path
+  podSecurityContext:
+    fsGroup: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+  replicaCount: 1
+  service:
+    annotations: {}
+    port: 5678
+    type: LoadBalancer
+postgresql:
+  auth:
+    database: n8ndb
+    password: VhB1knK#2vgVkbnyyc%p%hB#aCx
+    username: n8nuser
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: local-path
+redis:
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: ""
+    existingSecretPasswordKey: ""
+    password: 1B6kPmysGGoNBKnvGuueJ3222u1zYBOK
+    sentinel: true
+    usePasswordFiles: false
+  clusterDomain: cluster.local
+  common:
+    exampleValue: common-chart
+    global:
+      imagePullSecrets: []
+      imageRegistry: ""
+      redis:
+        password: ""
+      storageClass: ""
+  commonAnnotations: {}
+  commonConfiguration: |-
+    # Enable AOF https://redis.io/topics/persistence#append-only-file
+    appendonly yes
+    # Disable RDB persistence, AOF persistence already enabled.
+    save ""
+  commonLabels: {}
+  diagnosticMode:
+    args:
+    - infinity
+    command:
+    - sleep
+    enabled: false
+  enabled: true
+  existingConfigmap: ""
+  extraDeploy: []
+  fullnameOverride: ""
+  global:
+    imagePullSecrets: []
+    imageRegistry: ""
+    redis:
+      password: ""
+    storageClass: ""
+  image:
+    debug: false
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+    registry: docker.io
+    repository: bitnami/redis
+    tag: 7.0.4-debian-11-r23
+  kubeVersion: ""
+  master:
+    affinity: {}
+    args: []
+    command: []
+    configuration: ""
+    containerPorts:
+      redis: 6379
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+    count: 1
+    customLivenessProbe: {}
+    customReadinessProbe: {}
+    customStartupProbe: {}
+    disableCommands:
+    - FLUSHDB
+    - FLUSHALL
+    dnsConfig: {}
+    dnsPolicy: ""
+    extraEnvVars: []
+    extraEnvVarsCM: ""
+    extraEnvVarsSecret: ""
+    extraFlags: []
+    extraVolumeMounts: []
+    extraVolumes: []
+    hostAliases: []
+    initContainers: []
+    kind: StatefulSet
+    lifecycleHooks: {}
+    livenessProbe:
+      enabled: true
+      failureThreshold: 5
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 5
+    nodeAffinityPreset:
+      key: ""
+      type: ""
+      values: []
+    nodeSelector: {}
+    persistence:
+      accessModes:
+      - ReadWriteOnce
+      annotations: {}
+      dataSource: {}
+      enabled: false
+      existingClaim: ""
+      medium: ""
+      path: /data
+      selector: {}
+      size: 8Gi
+      sizeLimit: ""
+      storageClass: ""
+      subPath: ""
+    podAffinityPreset: ""
+    podAnnotations: {}
+    podAntiAffinityPreset: soft
+    podLabels: {}
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+    preExecCmds: []
+    priorityClassName: ""
+    readinessProbe:
+      enabled: true
+      failureThreshold: 5
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 1
+    resources:
+      limits: {}
+      requests: {}
+    schedulerName: ""
+    service:
+      annotations: {}
+      clusterIP: ""
+      externalTrafficPolicy: Cluster
+      extraPorts: []
+      internalTrafficPolicy: Cluster
+      loadBalancerIP: ""
+      loadBalancerSourceRanges: []
+      nodePorts:
+        redis: ""
+      ports:
+        redis: 6379
+      sessionAffinity: None
+      sessionAffinityConfig: {}
+      type: ClusterIP
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: true
+      create: false
+      name: ""
+    shareProcessNamespace: false
+    sidecars: []
+    startupProbe:
+      enabled: false
+      failureThreshold: 5
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 5
+    terminationGracePeriodSeconds: 30
+    tolerations: []
+    topologySpreadConstraints: []
+    updateStrategy:
+      rollingUpdate: {}
+      type: RollingUpdate
+  metrics:
+    command: []
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+    enabled: false
+    extraArgs: {}
+    extraEnvVars: []
+    extraVolumeMounts: []
+    extraVolumes: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: docker.io
+      repository: bitnami/redis-exporter
+      tag: 1.44.0-debian-11-r5
+    podAnnotations:
+      prometheus.io/port: "9121"
+      prometheus.io/scrape: "true"
+    podLabels: {}
+    prometheusRule:
+      additionalLabels: {}
+      enabled: false
+      namespace: ""
+      rules: []
+    redisTargetHost: localhost
+    resources:
+      limits: {}
+      requests: {}
+    service:
+      annotations: {}
+      externalTrafficPolicy: Cluster
+      extraPorts: []
+      loadBalancerIP: ""
+      loadBalancerSourceRanges: []
+      port: 9121
+      type: ClusterIP
+    serviceMonitor:
+      additionalLabels: {}
+      enabled: false
+      honorLabels: false
+      interval: 30s
+      metricRelabelings: []
+      namespace: ""
+      relabellings: []
+      scrapeTimeout: ""
+  nameOverride: ""
+  networkPolicy:
+    allowExternal: true
+    enabled: false
+    extraEgress: []
+    extraIngress: []
+    ingressNSMatchLabels: {}
+    ingressNSPodMatchLabels: {}
+  pdb:
+    create: false
+    maxUnavailable: ""
+    minAvailable: 1
+  podSecurityPolicy:
+    create: false
+    enabled: false
+  rbac:
+    create: false
+    rules: []
+  replica:
+    affinity: {}
+    args: []
+    autoscaling:
+      enabled: false
+      maxReplicas: 11
+      minReplicas: 1
+      targetCPU: ""
+      targetMemory: ""
+    command: []
+    configuration: ""
+    containerPorts:
+      redis: 6379
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+    customLivenessProbe: {}
+    customReadinessProbe: {}
+    customStartupProbe: {}
+    disableCommands:
+    - FLUSHDB
+    - FLUSHALL
+    dnsConfig: {}
+    dnsPolicy: ""
+    externalMaster:
+      enabled: false
+      host: ""
+      port: 6379
+    extraEnvVars: []
+    extraEnvVarsCM: ""
+    extraEnvVarsSecret: ""
+    extraFlags: []
+    extraVolumeMounts: []
+    extraVolumes: []
+    hostAliases: []
+    initContainers: []
+    lifecycleHooks: {}
+    livenessProbe:
+      enabled: true
+      failureThreshold: 5
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 5
+    nodeAffinityPreset:
+      key: ""
+      type: ""
+      values: []
+    nodeSelector: {}
+    persistence:
+      accessModes:
+      - ReadWriteOnce
+      annotations: {}
+      dataSource: {}
+      enabled: true
+      existingClaim: ""
+      medium: ""
+      path: /data
+      selector: {}
+      size: 8Gi
+      sizeLimit: ""
+      storageClass: ""
+      subPath: ""
+    podAffinityPreset: ""
+    podAnnotations: {}
+    podAntiAffinityPreset: soft
+    podLabels: {}
+    podManagementPolicy: ""
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+    preExecCmds: []
+    priorityClassName: ""
+    readinessProbe:
+      enabled: true
+      failureThreshold: 5
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 1
+    replicaCount: 3
+    resources:
+      limits: {}
+      requests: {}
+    schedulerName: ""
+    service:
+      annotations: {}
+      clusterIP: ""
+      externalTrafficPolicy: Cluster
+      extraPorts: []
+      internalTrafficPolicy: Cluster
+      loadBalancerIP: ""
+      loadBalancerSourceRanges: []
+      nodePorts:
+        redis: ""
+      ports:
+        redis: 6379
+      sessionAffinity: None
+      sessionAffinityConfig: {}
+      type: ClusterIP
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: true
+      create: false
+      name: ""
+    shareProcessNamespace: false
+    sidecars: []
+    startupProbe:
+      enabled: true
+      failureThreshold: 22
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
+    terminationGracePeriodSeconds: 30
+    tolerations: []
+    topologySpreadConstraints: []
+    updateStrategy:
+      rollingUpdate: {}
+      type: RollingUpdate
+  secretAnnotations: {}
+  sentinel:
+    args: []
+    automateClusterRecovery: false
+    command: []
+    configuration: ""
+    containerPorts:
+      sentinel: 26379
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+    customLivenessProbe: {}
+    customReadinessProbe: {}
+    customStartupProbe: {}
+    downAfterMilliseconds: 60000
+    enabled: false
+    externalMaster:
+      enabled: false
+      host: ""
+      port: 6379
+    extraEnvVars: []
+    extraEnvVarsCM: ""
+    extraEnvVarsSecret: ""
+    extraVolumeMounts: []
+    extraVolumes: []
+    failoverTimeout: 180000
+    getMasterTimeout: 220
+    image:
+      debug: false
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: docker.io
+      repository: bitnami/redis-sentinel
+      tag: 7.0.4-debian-11-r20
+    lifecycleHooks: {}
+    livenessProbe:
+      enabled: true
+      failureThreshold: 5
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 5
+    masterSet: mymaster
+    parallelSyncs: 1
+    persistence:
+      accessModes:
+      - ReadWriteOnce
+      annotations: {}
+      dataSource: {}
+      enabled: false
+      medium: ""
+      selector: {}
+      size: 100Mi
+      storageClass: ""
+    preExecCmds: []
+    quorum: 2
+    readinessProbe:
+      enabled: true
+      failureThreshold: 5
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 1
+    resources:
+      limits: {}
+      requests: {}
+    service:
+      annotations: {}
+      clusterIP: ""
+      externalTrafficPolicy: Cluster
+      extraPorts: []
+      loadBalancerIP: ""
+      loadBalancerSourceRanges: []
+      nodePorts:
+        redis: ""
+        sentinel: ""
+      ports:
+        redis: 6379
+        sentinel: 26379
+      sessionAffinity: None
+      sessionAffinityConfig: {}
+      type: ClusterIP
+    startupProbe:
+      enabled: true
+      failureThreshold: 22
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
+    terminationGracePeriodSeconds: 30
+  serviceAccount:
+    annotations: {}
+    automountServiceAccountToken: true
+    create: true
+    name: ""
+  sysctl:
+    command: []
+    enabled: false
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: docker.io
+      repository: bitnami/bitnami-shell
+      tag: 11-debian-11-r35
+    mountHostSys: false
+    resources:
+      limits: {}
+      requests: {}
+  tls:
+    authClients: true
+    autoGenerated: false
+    certCAFilename: ""
+    certFilename: ""
+    certKeyFilename: ""
+    certificatesSecret: ""
+    dhParamsFilename: ""
+    enabled: false
+    existingSecret: ""
+  useExternalDNS:
+    additionalAnnotations: {}
+    annotationKey: external-dns.alpha.kubernetes.io/
+    enabled: false
+    suffix: ""
+  volumePermissions:
+    containerSecurityContext:
+      runAsUser: 0
+    enabled: false
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: docker.io
+      repository: bitnami/bitnami-shell
+      tag: 11-debian-11-r35
+    resources:
+      limits: {}
+      requests: {}
+
+HOOKS:
+MANIFEST:
+---
+# Source: n8n/charts/redis/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: my-n8n-redis
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: n8n/charts/redis/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-n8n-redis
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  redis-password: "MUI2a1BteXNHR29OQktudkd1dWVKMzIyMnUxellCT0s="
+---
+# Source: n8n/templates/secret-encryption-key.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auto546-n8n-encryption-key
+  labels:
+    helm.sh/chart: n8n-0.3.2
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/version: "1.92.0"
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  n8n-encryption-key: "UjRaUzRkOUJtNTFsaENTOHI0aU85NlJvVVF4WU1DTmY="
+---
+# Source: n8n/charts/redis/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-n8n-redis-configuration
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+data:
+  redis.conf: |-
+    # User-supplied common configuration:
+    # Enable AOF https://redis.io/topics/persistence#append-only-file
+    appendonly yes
+    # Disable RDB persistence, AOF persistence already enabled.
+    save ""
+    # End of common configuration
+  master.conf: |-
+    dir /data
+    # User-supplied master configuration:
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+    # End of master configuration
+  replica.conf: |-
+    dir /data
+    # User-supplied replica configuration:
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+    # End of replica configuration
+---
+# Source: n8n/charts/redis/templates/health-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-n8n-redis-health
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+data:
+  ping_readiness_local.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_PASSWORD_FILE ]] && export REDIS_PASSWORD="$(< "${REDIS_PASSWORD_FILE}")"
+    [[ -n "$REDIS_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_local.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_PASSWORD_FILE ]] && export REDIS_PASSWORD="$(< "${REDIS_PASSWORD_FILE}")"
+    [[ -n "$REDIS_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    responseFirstWord=$(echo $response | head -n1 | awk '{print $1;}')
+    if [ "$response" != "PONG" ] && [ "$responseFirstWord" != "LOADING" ] && [ "$responseFirstWord" != "MASTERDOWN" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_readiness_master.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_MASTER_PASSWORD_FILE ]] && export REDIS_MASTER_PASSWORD="$(< "${REDIS_MASTER_PASSWORD_FILE}")"
+    [[ -n "$REDIS_MASTER_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_MASTER_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_master.sh: |-
+    #!/bin/bash
+
+    [[ -f $REDIS_MASTER_PASSWORD_FILE ]] && export REDIS_MASTER_PASSWORD="$(< "${REDIS_MASTER_PASSWORD_FILE}")"
+    [[ -n "$REDIS_MASTER_PASSWORD" ]] && export REDISCLI_AUTH="$REDIS_MASTER_PASSWORD"
+    response=$(
+      timeout -s 3 $1 \
+      redis-cli \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$?" -eq "124" ]; then
+      echo "Timed out"
+      exit 1
+    fi
+    responseFirstWord=$(echo $response | head -n1 | awk '{print $1;}')
+    if [ "$response" != "PONG" ] && [ "$responseFirstWord" != "LOADING" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_readiness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_readiness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_readiness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+  ping_liveness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_liveness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_liveness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+---
+# Source: n8n/charts/redis/templates/scripts-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-n8n-redis-scripts
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+data:
+  start-master.sh: |
+    #!/bin/bash
+
+    [[ -f $REDIS_PASSWORD_FILE ]] && export REDIS_PASSWORD="$(< "${REDIS_PASSWORD_FILE}")"
+    if [[ -f /opt/bitnami/redis/mounted-etc/master.conf ]];then
+        cp /opt/bitnami/redis/mounted-etc/master.conf /opt/bitnami/redis/etc/master.conf
+    fi
+    if [[ -f /opt/bitnami/redis/mounted-etc/redis.conf ]];then
+        cp /opt/bitnami/redis/mounted-etc/redis.conf /opt/bitnami/redis/etc/redis.conf
+    fi
+    ARGS=("--port" "${REDIS_PORT}")
+    ARGS+=("--requirepass" "${REDIS_PASSWORD}")
+    ARGS+=("--masterauth" "${REDIS_PASSWORD}")
+    ARGS+=("--include" "/opt/bitnami/redis/etc/redis.conf")
+    ARGS+=("--include" "/opt/bitnami/redis/etc/master.conf")
+    exec redis-server "${ARGS[@]}"
+---
+# Source: n8n/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auto546-n8n-env
+  labels:
+    helm.sh/chart: n8n-0.3.2
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/version: "1.92.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  DB_TYPE: "postgresdb"
+  # DB_POSTGRESDB_PASSWORD is set via Secret in the deployment
+
+  # N8N_ENCRYPTION_KEY é melhor gerenciado via Secret, não ConfigMap.
+  # Se você precisar muito aqui (não recomendado para chaves):
+  # N8N_ENCRYPTION_KEY: 
+
+  N8N_PORT: "5678"
+  N8N_HOST: "0.0.0.0"
+  WEBHOOK_URL: 
+  GENERIC_TIMEZONE: "America/Sao_Paulo"
+  NODE_ENV: "production"
+  N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: "true"
+  N8N_EMAIL_MODE: "smtp"
+---
+# Source: n8n/charts/redis/templates/headless-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-n8n-redis-headless
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: tcp-redis
+      port: 6379
+      targetPort: redis
+  selector:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: my-n8n
+---
+# Source: n8n/charts/redis/templates/master/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-n8n-redis-master
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: master
+spec:
+  type: ClusterIP
+  internalTrafficPolicy: Cluster
+  sessionAffinity: None
+  ports:
+    - name: tcp-redis
+      port: 6379
+      targetPort: redis
+      nodePort: null
+  selector:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/component: master
+---
+# Source: n8n/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auto546-n8n
+  labels:
+    helm.sh/chart: n8n-0.3.2
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/version: "1.92.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/instance: my-n8n
+  template:
+
+    metadata:
+      labels:
+        app.kubernetes.io/name: n8n
+        app.kubernetes.io/instance: my-n8n
+      annotations:
+        checksum/secret-encryption-key: 5bca116792c59b1e6276ac976898c0be1c5a0eabec51ed96355181b500daa71a
+    spec:
+      serviceAccountName: auto546-n8n
+      initContainers:
+
+      containers:
+        - name: n8n
+          image: "n8nio/n8n:1.92.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - "n8n"
+          args:
+            - "start"
+          ports:
+            - name: http
+              containerPort: 5678
+              protocol: TCP
+          env:
+            - name: EXECUTIONS_MODE
+              value: regular
+
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: auto546-n8n-encryption-key
+                  key: n8n-encryption-key
+            - name: N8N_PORT
+              value: "5678"
+            - name: N8N_HOST
+              value: "0.0.0.0"
+            - name: WEBHOOK_URL
+              value: 
+            - name: GENERIC_TIMEZONE
+              value: America/Sao_Paulo
+            - name: NODE_ENV
+              value: production
+            - name: N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN # Para n8n >= 1.26
+              value: "true"
+            - name: N8N_EMAIL_MODE # Para n8n >= 1.23
+              value: "smtp" # Ajuste conforme necessário (ex: "sendmail")
+          resources:
+            {}
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+      volumes:
+        - name: n8n-data
+          emptyDir: {}
+---
+# Source: n8n/charts/redis/templates/master/application.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: my-n8n-redis-master
+  namespace: "automacao546"
+  labels:
+    app.kubernetes.io/name: redis
+    helm.sh/chart: redis-17.1.6
+    app.kubernetes.io/instance: my-n8n
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: my-n8n
+      app.kubernetes.io/component: master
+  serviceName: my-n8n-redis-headless
+  updateStrategy:
+    rollingUpdate: {}
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        helm.sh/chart: redis-17.1.6
+        app.kubernetes.io/instance: my-n8n
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: master
+      annotations:
+        checksum/configmap: c297a0550ad6aa4a9eccdefc66fbed081681d33fefaf3f67fc6d70e5db2c0523
+        checksum/health: d2e4354a74610d28090bd542a1f9b7c6f601fb416f2650b9dc57270d969497ef
+        checksum/scripts: f786096e52db4d50f8273630686d679c8c92290d618c849bed8ff01867b01275
+        checksum/secret: cdd911a1c60b56ea3235c8ca7af9a4c1f8821cc4ad3b89ad87d88c2e06f81ab7
+    spec:
+      
+      securityContext:
+        fsGroup: 1001
+      serviceAccountName: my-n8n-redis
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: redis
+                    app.kubernetes.io/instance: my-n8n
+                    app.kubernetes.io/component: master
+                namespaces:
+                  - "automacao546"
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: redis
+          image: docker.io/bitnami/redis:7.0.4-debian-11-r23
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            runAsUser: 1001
+          command:
+            - /bin/bash
+          args:
+            - -c
+            - /opt/bitnami/scripts/start-scripts/start-master.sh
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: REDIS_REPLICATION_MODE
+              value: master
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "no"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-n8n-redis
+                  key: redis-password
+            - name: REDIS_TLS_ENABLED
+              value: "no"
+            - name: REDIS_PORT
+              value: "6379"
+          ports:
+            - name: redis
+              containerPort: 6379
+          livenessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            # One second longer than command timeout should prevent generation of zombie processes.
+            timeoutSeconds: 6
+            successThreshold: 1
+            failureThreshold: 5
+            exec:
+              command:
+                - sh
+                - -c
+                - /health/ping_liveness_local.sh 5
+          readinessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 5
+            exec:
+              command:
+                - sh
+                - -c
+                - /health/ping_readiness_local.sh 1
+          resources:
+            limits: {}
+            requests: {}
+          volumeMounts:
+            - name: start-scripts
+              mountPath: /opt/bitnami/scripts/start-scripts
+            - name: health
+              mountPath: /health
+            - name: redis-data
+              mountPath: /data
+              subPath: 
+            - name: config
+              mountPath: /opt/bitnami/redis/mounted-etc
+            - name: redis-tmp-conf
+              mountPath: /opt/bitnami/redis/etc/
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: start-scripts
+          configMap:
+            name: my-n8n-redis-scripts
+            defaultMode: 0755
+        - name: health
+          configMap:
+            name: my-n8n-redis-health
+            defaultMode: 0755
+        - name: config
+          configMap:
+            name: my-n8n-redis-configuration
+        - name: redis-tmp-conf
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: redis-data
+          emptyDir: {}
+---
+# Source: n8n/templates/n8n-pvc.yaml
+# DEBUG: $persistenceValues is map[string]interface {}
+# DEBUG: $persistenceValues.enabled is <nil> and value is
+---
+# Source: n8n/templates/service.yaml
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: auto546-n8n-debugsvc-service-values-missing
+# spec:
+#   type: ClusterIP
+#   ports:
+#     - port: 1234
+#       targetPort: 1234
+#   selector:
+#     app: fake
+# Comentado para não gerar um serviço inválido, mas para indicar no log se o .Values.service está faltando
 

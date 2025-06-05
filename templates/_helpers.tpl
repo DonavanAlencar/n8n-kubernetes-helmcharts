@@ -59,54 +59,68 @@ apps/v1
 {{- else -}}
 apps/v1beta2
 {{- end }}
+{{- end }}
+
+{{/*
+Return the appropriate apiVersion for HPA.
+*/}}
+{{- define "n8n.hpa.apiVersion" -}}
+{{- if semverCompare ">=1.23-0" .Capabilities.KubeVersion.GitVersion -}}
+autoscaling/v2
+{{- else -}}
+autoscaling/v2beta2
+{{- end }}
+{{- end }}
+
+
+{{/*
+Service Account Name
+*/}}
+{{- define "n8n.serviceAccountName" -}}
+{{- $sa := .Values.serviceAccount | default dict -}}
+{{- $createSA := $sa.create | default true -}}
+{{- $saName := $sa.name | default "" -}}
+
+{{- if $createSA -}}
+  {{- $saName | default (include "n8n.fullname" .) -}}
+{{- else -}}
+  {{- $saName | default "default" -}}
+{{- end }}
 {{- end -}}
 
 {{/*
 Name of the encryption key secret.
+Uses .Values.config.existingEncryptionKeySecret if provided, otherwise generates a name.
 */}}
 {{- define "n8n.encryptionKeySecretName" -}}
-{{- .Values.config.existingEncryptionKeySecret | default (printf "%s-encryption-key" (include "n8n.fullname" .)) }}
-{{- end -}}
+{{- $config := .Values.config | default dict -}}
+{{- $existingSecret := $config.existingEncryptionKeySecret | default "" -}}
+{{- $existingSecret | default (printf "%s-encryption-key" (include "n8n.fullname" .)) }}
+{{- end }}
 
 {{/*
-PostgreSQL Host
-Assumes PostgreSQL is a sibling chart deployed with the release.
-The service name for Bitnami PostgreSQL is typically <releaseName>-<chartName>
-If postgresql.fullnameOverride is set for the postgresql subchart, that takes precedence.
+Constructs the PostgreSQL host. Assumes Bitnami PostgreSQL subchart.
+This needs to be smarter if `postgresql.fullnameOverride` is used in the parent chart
+OR if the PostgreSQL subchart has its own `fullnameOverride`.
+For now, assumes a standard naming convention.
 */}}
 {{- define "n8n.postgresql.host" -}}
-{{- $postgresqlFullname := printf "%s-postgresql" .Release.Name -}}
-{{- $host := "" -}}
-{{- if .Values.global -}}
-  {{- if .Values.global.postgresql -}}
-    {{- $host = .Values.global.postgresql.fullnameOverride | default $postgresqlFullname -}}
+  {{- $pgValues := .Values.externalPostgresql | default dict -}}
+  {{- if $pgValues.host -}}
+    {{- $pgValues.host -}}
   {{- else -}}
-    {{- $host = $postgresqlFullname -}}
+    {{- printf "%s-postgresql" .Release.Name -}}
   {{- end -}}
-{{- else -}}
-  {{- $host = $postgresqlFullname -}}
 {{- end -}}
-{{- $host -}}
-{{- end -}}
-
 
 {{/*
-Redis Host
-Assumes Redis is a sibling chart deployed with the release.
-The service name for Bitnami Redis master is typically <releaseName>-<chartName>-master
-If redis.fullnameOverride is set for the redis subchart, that takes precedence.
+Constructs the Redis host. Assumes Bitnami Redis subchart.
 */}}
 {{- define "n8n.redis.host" -}}
-{{- $redisFullname := printf "%s-redis-master" .Release.Name -}}
-{{- $host := "" -}}
-{{- if .Values.global -}}
-  {{- if .Values.global.redis -}}
-    {{- $host = .Values.global.redis.fullnameOverride | default $redisFullname -}}
+  {{- $redisValues := .Values.externalRedis | default dict -}}
+  {{- if $redisValues.host -}}
+    {{- $redisValues.host -}}
   {{- else -}}
-    {{- $host = $redisFullname -}}
+    {{- printf "%s-redis-master" .Release.Name -}} {{/* Default for Bitnami standalone Redis */}}
   {{- end -}}
-{{- else -}}
-  {{- $host = $redisFullname -}}
-{{- end -}}
-{{- $host -}}
-{{- end -}}
+{{- end }}

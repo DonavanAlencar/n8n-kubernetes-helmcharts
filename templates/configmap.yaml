@@ -1,15 +1,47 @@
+{{- $config := .Values.config | default dict -}}
+{{- $serviceValues := .Values.service | default dict -}}
+{{- $externalPostgresql := .Values.externalPostgresql | default dict -}}
+{{- $externalRedis := .Values.externalRedis | default dict -}}
+{{- $extraEnvVars := .Values.extraEnvVars | default dict -}}
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "n8n.fullname" . }}-config
+  name: {{ include "n8n.fullname" . }}-env
   labels:
-    app: {{ include "n8n.name" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "n8n.labels" . | nindent 4 }}
 data:
-  # Esse arquivo settings.json será copiado para /home/node/.n8n/config/settings.json
-  settings.json: |-
-    {
-      "encryptionKey": "{{ .Values.config.encryptionKey }}"
-    }
+  DB_TYPE: "postgresdb"
+  {{- if $externalPostgresql.host }}
+  DB_POSTGRESDB_HOST: {{ $externalPostgresql.host | quote }}
+  DB_POSTGRESDB_PORT: {{ $externalPostgresql.port | default "5432" | quote }}
+  DB_POSTGRESDB_DATABASE: {{ $externalPostgresql.database | quote }}
+  DB_POSTGRESDB_USER: {{ $externalPostgresql.username | quote }}
+  {{- end }}
+  # DB_POSTGRESDB_PASSWORD is set via Secret in the deployment
+
+  # N8N_ENCRYPTION_KEY é melhor gerenciado via Secret, não ConfigMap.
+  # Se você precisar muito aqui (não recomendado para chaves):
+  # N8N_ENCRYPTION_KEY: {{ $config.encryptionKey | quote }}
+
+  N8N_PORT: {{ $serviceValues.port | default 5678 | quote }}
+  N8N_HOST: "0.0.0.0"
+  WEBHOOK_URL: {{ $config.webhookUrl | quote }}
+  GENERIC_TIMEZONE: {{ $config.timezone | default "America/Sao_Paulo" | quote }}
+  NODE_ENV: {{ $config.nodeEnv | default "production" | quote }}
+  N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: "true"
+  N8N_EMAIL_MODE: "smtp"
+
+  {{- if eq ($config.executionsMode | default "regular") "queue" }}
+  EXECUTIONS_MODE: {{ $config.executionsMode | quote }}
+  EXECUTIONS_PROCESS: {{ $config.executionsProcess | default "main" | quote }}
+  {{- if $externalRedis.host }}
+  QUEUE_BULL_REDIS_HOST: {{ $externalRedis.host | quote }}
+  QUEUE_BULL_REDIS_PORT: {{ $externalRedis.port | default "6379" | quote }}
+  {{- end }}
+  # QUEUE_BULL_REDIS_PASSWORD is set via Secret in the deployment
+  {{- end }}
+
+  {{- range $key, $value := $extraEnvVars }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

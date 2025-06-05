@@ -10,6 +10,18 @@ spec:
     matchLabels:
       {{- include "n8n.selectorLabels" . | nindent 6 }}
   template:
+    {{- /* Definição de variáveis com defaults no escopo do template.template */}}
+    {{- $config := .Values.config | default dict -}}
+    {{- $configMapValues := .Values.configMap | default dict -}}
+    {{- $configMapEnabled := $configMapValues.enabled | default false -}}
+    {{- $persistenceValues := .Values.persistence | default dict -}}
+    {{- $serviceValues := .Values.service | default dict -}}
+    {{- $imageValues := .Values.image | default dict -}}
+    {{- $imageRepo := $imageValues.repository | default "n8nio/n8n" -}}
+    {{- $imageTag := $imageValues.tag | default .Chart.AppVersion -}}
+    {{- $imagePullPolicy := $imageValues.pullPolicy | default "IfNotPresent" -}}
+    {{- $podSecurityContextValues := .Values.podSecurityContext | default dict -}} {{/* Adicionado para chown */}}
+
     metadata:
       labels:
         {{- include "n8n.selectorLabels" . | nindent 8 }}
@@ -17,9 +29,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret-encryption-key.yaml") . | sha256sum }}
-        {{- if .Values.configMap.enabled }}
-        checksum/configmap: {{ include (print $.Template.BasePath "/configmap-settings.yaml") . | sha256sum }} # Supondo que você tenha configmap-settings.yaml
+        checksum/secret-encryption-key: {{ include (print $.Template.BasePath "/secret-encryption-key.yaml") . | sha256sum }}
+        {{- if $configMapEnabled }}
+        checksum/configmap-settings: {{ include (print $.Template.BasePath "/configmap-settings.yaml") . | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -29,183 +41,209 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "n8n.serviceAccountName" . }} # Certifique-se de que _helpers.tpl define isso ou remova se não usar SA específico
-      {{- if .Values.podSecurityContext.enabled }}
-      securityContext: {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      serviceAccountName: {{ include "n8n.serviceAccountName" . }}
+      {{- if .Values.podSecurityContext }} {{/* Mantém a verificação original, pois toYaml em nil é problemático */}}
+      securityContext: {{- .Values.podSecurityContext | toYaml | nindent 8 }}
       {{- end }}
       initContainers:
-        {{- if .Values.initContainers.fixPermissions.enabled }}
+        {{- $initContainers := .Values.initContainers | default dict -}}
+        {{- $fixPermissions := $initContainers.fixPermissions | default dict -}}
+        {{- $fixPermissionsEnabled := $fixPermissions.enabled | default false -}}
+        {{- $fixPermImage := $fixPermissions.image | default dict -}}
+        {{- $waitForDependency := $initContainers.waitForDependency | default dict -}}
+        {{- $installNodes := $initContainers.installNodes | default dict -}}
+
+        {{- if $fixPermissionsEnabled }}
         - name: fix-permissions
-          image: "{{ .Values.initContainers.fixPermissions.image.repository }}:{{ .Values.initContainers.fixPermissions.image.tag }}"
-          imagePullPolicy: {{ .Values.initContainers.fixPermissions.image.pullPolicy }}
+          image: "{{ $fixPermImage.repository | default "busybox" }}:{{ $fixPermImage.tag | default "1.36.1" }}"
+          imagePullPolicy: {{ $fixPermImage.pullPolicy | default "IfNotPresent" }}
           command:
             - "sh"
             - "-c"
             - >
-              TARGET_DIR="{{ .Values.persistence.mountPath }}";
+              TARGET_DIR="{{ $persistenceValues.mountPath | default "/home/node/.n8n" }}";
               mkdir -p ${TARGET_DIR} &&
-              chown -R {{ .Values.podSecurityContext.runAsUser | default 1000 }}:{{ .Values.podSecurityContext.fsGroup | default 1000 }} ${TARGET_DIR} &&
+              chown -R {{ $podSecurityContextValues.runAsUser | default 1000 }}:{{ $podSecurityContextValues.fsGroup | default 1000 }} ${TARGET_DIR} &&
               echo "Permissions fixed for ${TARGET_DIR}"
           volumeMounts:
             - name: n8n-data
-              mountPath: {{ .Values.persistence.mountPath }}
+              mountPath: {{ $persistenceValues.mountPath | default "/home/node/.n8n" }}
           resources:
-            {{- toYaml .Values.initContainers.fixPermissions.resources | nindent 12 }}
+            {{- toYaml ($fixPermissions.resources | default dict) | nindent 12 }}
         {{- end }}
 
-        {{- if .Values.global.redis.enabled }} # Assumindo que .Values.global.redis.enabled controla se Redis é usado
-        - name: wait-for-redis
-          image: "{{ .Values.initContainers.waitForDependency.image.repository }}:{{ .Values.initContainers.waitForDependency.image.tag }}"
-          imagePullPolicy: {{ .Values.initContainers.waitForDependency.image.pullPolicy }}
-          env:
-            - name: REDIS_HOST
-              value: {{ include "n8n.redis.host" . }}
-            - name: REDIS_PORT
-              value: {{ .Values.global.redis.master.service.port | default "6379" | quote }} # Obtendo do values global do redis
-          command:
-            - "sh"
-            - "-c"
-            - >
-              echo "⏳ Aguardando Redis ${REDIS_HOST}:${REDIS_PORT}...";
-              until nc -zv -w 3 ${REDIS_HOST} ${REDIS_PORT}; do echo "Redis não disponível (${REDIS_HOST}:${REDIS_PORT}), aguardando..."; sleep 3; done;
-              echo "✅ Redis está pronto (${REDIS_HOST}:${REDIS_PORT})!"
-          resources:
-            {{- toYaml .Values.initContainers.waitForDependency.resources | nindent 12 }}
-        {{- end }}
-
-        {{- if .Values.global.postgresql.enabled }} # Assumindo que .Values.global.postgresql.enabled controla se Postgres é usado
+        {{- /* Exemplo de wait-for-postgres (adapte se for usar) */}}
+        {{- /*
+        {{- $waitDepImage := $waitForDependency.image | default dict -}}
+        {{- if .Values.externalPostgresql.host }}
         - name: wait-for-postgres
-          image: "{{ .Values.initContainers.waitForDependency.image.repository }}:{{ .Values.initContainers.waitForDependency.image.tag }}"
-          imagePullPolicy: {{ .Values.initContainers.waitForDependency.image.pullPolicy }}
+          image: "{{ $waitDepImage.repository | default "busybox" }}:{{ $waitDepImage.tag | default "1.36.1" }}"
+          imagePullPolicy: {{ $waitDepImage.pullPolicy | default "IfNotPresent" }}
           env:
             - name: PG_HOST
-              value: {{ include "n8n.postgresql.host" . }}
+              value: {{ .Values.externalPostgresql.host }}
             - name: PG_PORT
-              value: {{ .Values.global.postgresql.primary.service.ports.postgresql | default "5432" | quote }} # Obtendo do values global do postgresql
-          command:
-            - "sh"
-            - "-c"
-            - >
-              echo "⏳ Aguardando PostgreSQL ${PG_HOST}:${PG_PORT}...";
-              until nc -zv -w 3 ${PG_HOST} ${PG_PORT}; do echo "PostgreSQL não disponível (${PG_HOST}:${PG_PORT}), aguardando..."; sleep 3; done;
-              echo "✅ PostgreSQL está pronto (${PG_HOST}:${PG_PORT})!"
+              value: {{ .Values.externalPostgresql.port | default "5432" | quote }}
+          command: ["sh", "-c", "echo 'Waiting for PostgreSQL...'; until nc -zv -w 3 ${PG_HOST} ${PG_PORT}; do sleep 3; done; echo 'PostgreSQL is up!'"]
           resources:
-            {{- toYaml .Values.initContainers.waitForDependency.resources | nindent 12 }}
+            {{- toYaml ($waitForDependency.resources | default dict) | nindent 12 }}
         {{- end }}
+        */}}
 
-        {{- if .Values.config.extraNodePackages }}
+        {{- if $config.extraNodePackages }}
         - name: install-nodes
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          workingDir: {{ .Values.persistence.mountPath }}
+          image: "{{ $imageRepo }}:{{ $imageTag }}" # Usa a imagem principal do n8n
+          imagePullPolicy: {{ $imagePullPolicy }}
+          workingDir: {{ $persistenceValues.mountPath | default "/home/node/.n8n" }}
           command:
             - sh
             - -c
             - |
-              echo "📦 Instalando pacotes NPM extras..."
-              mkdir -p "{{ .Values.persistence.mountPath }}/node_modules"
-              npm install --prefix "{{ .Values.persistence.mountPath }}" {{ range .Values.config.extraNodePackages }}{{ .name }}{{ range .installArgs }} {{ . }}{{ end }} {{ end }} && echo "✅ Pacotes NPM extras instalados."
+              echo "📦 Installing extra NPM packages..."
+              mkdir -p "{{ $persistenceValues.mountPath | default "/home/node/.n8n" }}/node_modules"
+              npm install --prefix "{{ $persistenceValues.mountPath | default "/home/node/.n8n" }}" {{ range $config.extraNodePackages }}{{ .name }}{{ range .installArgs }} {{ . }}{{ end }} {{ end }} && echo "✅ Extra NPM packages installed."
           volumeMounts:
             - name: n8n-data
-              mountPath: {{ .Values.persistence.mountPath }}
+              mountPath: {{ $persistenceValues.mountPath | default "/home/node/.n8n" }}
           resources:
-            {{- toYaml .Values.initContainers.installNodes.resources | nindent 12 }}
+            {{- toYaml ($installNodes.resources | default dict) | nindent 12 }}
         {{- end }}
 
       containers:
         - name: {{ .Chart.Name }}
-          {{- if .Values.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- if .Values.securityContext }} {{/* Para o securityContext do container, não do pod */}}
+          securityContext: {{- .Values.securityContext | toYaml | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ $imageRepo }}:{{ $imageTag }}"
+          imagePullPolicy: {{ $imagePullPolicy }}
           command:
             - "n8n"
           args:
             - "start"
-            {{- with .Values.config.extraArgs }}
+            {{- with $config.extraArgs }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ $serviceValues.port | default 5678 }}
               protocol: TCP
           env:
             - name: EXECUTIONS_MODE
-              value: {{ .Values.config.executionsMode | default "regular" }}
-            {{- if eq .Values.config.executionsMode "queue" }}
+              value: {{ $config.executionsMode | default "regular" }}
+            {{- if eq ($config.executionsMode | default "regular") "queue" }}
             - name: EXECUTIONS_PROCESS
-              value: {{ .Values.config.executionsProcess | default "main" }}
+              value: {{ $config.executionsProcess | default "main" }}
             {{- end }}
 
-            {{- if and .Values.global.redis.enabled (eq .Values.config.executionsMode "queue") }}
+            {{- $externalRedis := .Values.externalRedis | default dict -}}
+            {{- if and $externalRedis.host (eq ($config.executionsMode | default "regular") "queue") }}
             - name: QUEUE_BULL_REDIS_HOST
-              value: {{ include "n8n.redis.host" . }}
+              value: {{ include "n8n.redis.host" . }} {{/* Usando helper */}}
             - name: QUEUE_BULL_REDIS_PORT
-              value: {{ .Values.global.redis.master.service.port | default "6379" | quote }}
-            {{- if .Values.global.redis.auth.enabled }}
+              value: {{ $externalRedis.port | default "6379" | quote }}
+            {{- if $externalRedis.existingSecret }}
             - name: QUEUE_BULL_REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.global.redis.auth.existingSecret | default (printf "%s-redis" .Release.Name) }}
-                  key: {{ .Values.global.redis.auth.existingSecretPasswordKey | default "redis-password" }}
+                  name: {{ $externalRedis.existingSecret }}
+                  key: {{ $externalRedis.passwordSecretKey | default "redis-password" }}
+            {{- else if $externalRedis.password }}
+            - name: QUEUE_BULL_REDIS_PASSWORD
+              value: {{ $externalRedis.password }}
             {{- end }}
             {{- end }}
 
+            {{- $externalPostgresql := .Values.externalPostgresql | default dict -}}
+            {{- if $externalPostgresql.host }} {{/* Ou uma condição mais robusta como 'if .Values.externalPostgresql.enabled' */}}
             - name: DB_TYPE
               value: "postgresdb"
             - name: DB_POSTGRESDB_HOST
-              value: {{ include "n8n.postgresql.host" . }}
+              value: {{ include "n8n.postgresql.host" . }} {{/* Usando helper */}}
             - name: DB_POSTGRESDB_PORT
-              value: {{ .Values.global.postgresql.primary.service.ports.postgresql | default "5432" | quote }}
+              value: {{ $externalPostgresql.port | default "5432" | quote }}
             - name: DB_POSTGRESDB_DATABASE
-              value: {{ .Values.global.postgresql.auth.database }}
+              value: {{ $externalPostgresql.database }}
             - name: DB_POSTGRESDB_USER
-              value: {{ .Values.global.postgresql.auth.username }}
+              value: {{ $externalPostgresql.username }}
+            {{- if $externalPostgresql.existingSecret }}
             - name: DB_POSTGRESDB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.global.postgresql.auth.existingSecret | default (printf "%s-postgresql" .Release.Name ) }}
-                  key: {{ .Values.global.postgresql.auth.secretKeys.userPasswordKey | default "postgresql-password" }}
+                  name: {{ $externalPostgresql.existingSecret }}
+                  key: {{ $externalPostgresql.passwordSecretKey | default "postgresql-password" }}
+            {{- else if $externalPostgresql.password }} {{/* Cuidado ao colocar senhas diretamente aqui */}}
+             - name: DB_POSTGRESDB_PASSWORD
+              value: {{ $externalPostgresql.password }}
+            {{- end }}
+            {{- end }}
 
             - name: N8N_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "n8n.encryptionKeySecretName" . }}
-                  key: {{ .Values.config.encryptionKeySecretKey | default "n8n-encryption-key" }}
+                  key: {{ $config.encryptionKeySecretKey | default "n8n-encryption-key" }}
             - name: N8N_PORT
-              value: {{ .Values.service.port | quote }}
+              value: {{ $serviceValues.port | default 5678 | quote }}
             - name: N8N_HOST
               value: "0.0.0.0"
             - name: WEBHOOK_URL
-              value: {{ .Values.config.webhookUrl }}
+              value: {{ $config.webhookUrl }}
             - name: GENERIC_TIMEZONE
-              value: {{ .Values.config.timezone | default "America/Sao_Paulo" }}
+              value: {{ $config.timezone | default "America/Sao_Paulo" }}
             - name: NODE_ENV
-              value: {{ .Values.config.nodeEnv | default "production" }}
-            - name: N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN
+              value: {{ $config.nodeEnv | default "production" }}
+            - name: N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN # Para n8n >= 1.26
               value: "true"
-            - name: N8N_EMAIL_MODE
-              value: "smtp"
+            - name: N8N_EMAIL_MODE # Para n8n >= 1.23
+              value: "smtp" # Ajuste conforme necessário (ex: "sendmail")
 
-            {{- range .Values.config.extraEnvVars }}
+            {{- with $config.extraEnvVars }}
+            {{- range . }}
             - name: {{ .name }}
+            {{- if .value }}
               value: {{ .value | quote }}
+            {{- else if .valueFrom }}
+              valueFrom: {{- .valueFrom | toYaml | nindent 16 | trim }}
             {{- end }}
-          {{- if .Values.livenessProbe.enabled }}
-          livenessProbe: {{- omit .Values.livenessProbe "enabled" | toYaml | nindent 12 }}
+            {{- end }}
+            {{- end }}
+
+          {{- $livenessProbeValues := .Values.livenessProbe | default dict -}}
+          {{- if $livenessProbeValues.httpGet }} {{/* Ou uma chave 'enabled' mais explícita */}}
+          livenessProbe:
+            httpGet:
+              path: {{ $livenessProbeValues.httpGet.path | default "/healthz" }}
+              port: {{ $livenessProbeValues.httpGet.port | default "http" }}
+            initialDelaySeconds: {{ $livenessProbeValues.initialDelaySeconds | default 60 }}
+            periodSeconds: {{ $livenessProbeValues.periodSeconds | default 30 }}
+            timeoutSeconds: {{ $livenessProbeValues.timeoutSeconds | default 5 }}
+            failureThreshold: {{ $livenessProbeValues.failureThreshold | default 3 }}
+            successThreshold: {{ $livenessProbeValues.successThreshold | default 1 }}
           {{- end }}
-          {{- if .Values.readinessProbe.enabled }}
-          readinessProbe: {{- omit .Values.readinessProbe "enabled" | toYaml | nindent 12 }}
+
+          {{- $readinessProbeValues := .Values.readinessProbe | default dict -}}
+          {{- if $readinessProbeValues.httpGet }}
+          readinessProbe:
+            httpGet:
+              path: {{ $readinessProbeValues.httpGet.path | default "/healthz" }}
+              port: {{ $readinessProbeValues.httpGet.port | default "http" }}
+            initialDelaySeconds: {{ $readinessProbeValues.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ $readinessProbeValues.periodSeconds | default 10 }}
+            timeoutSeconds: {{ $readinessProbeValues.timeoutSeconds | default 5 }}
+            failureThreshold: {{ $readinessProbeValues.failureThreshold | default 3 }}
+            successThreshold: {{ $readinessProbeValues.successThreshold | default 1 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml (.Values.resources | default dict) | nindent 12 }}
           volumeMounts:
             - name: n8n-data
-              mountPath: {{ .Values.persistence.mountPath }}
-            {{- if .Values.configMap.enabled }}
+              mountPath: {{ $persistenceValues.mountPath | default "/home/node/.n8n" }}
+              {{- if $persistenceValues.subPath }}
+              subPath: {{ $persistenceValues.subPath }}
+              {{- end }}
+            {{- if $configMapEnabled }}
             - name: n8n-settings
-              mountPath: "{{ .Values.persistence.mountPath }}/config" # Monta o diretório config
+              mountPath: "{{ $persistenceValues.mountPath | default "/home/node/.n8n" }}/config" # Monta o diretório config
               readOnly: true
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
@@ -213,20 +251,21 @@ spec:
             {{- end }}
       volumes:
         - name: n8n-data
-        {{- if .Values.persistence.enabled }}
+        {{- if $persistenceValues.enabled }}
           persistentVolumeClaim:
-            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-pvc" (include "n8n.fullname" .)) }}
+            claimName: {{ $persistenceValues.existingClaim | default (printf "%s-pvc" (include "n8n.fullname" .)) }}
         {{- else }}
           emptyDir: {}
         {{- end }}
-        {{- if .Values.configMap.enabled }}
+        {{- if $configMapEnabled }}
         - name: n8n-settings
           configMap:
-            name: {{ .Values.configMap.name | default (printf "%s-settings" (include "n8n.fullname" .)) }}
-            defaultMode: {{ .Values.configMap.defaultMode | default 420 }}
-            # items: # Se você quiser montar arquivos específicos do configmap
-            #   - key: settings.json
-            #     path: settings.json
+            name: {{ $configMapValues.name | default (printf "%s-settings" (include "n8n.fullname" .)) }}
+            defaultMode: {{ $configMapValues.defaultMode | default 420 }}
+            # Se você quiser montar apenas o settings.json e não o diretório config inteiro:
+            # items:
+            #   - key: settings.json # Chave no ConfigMap
+            #     path: settings.json # Nome do arquivo no mountPath (resultaria em /config/settings.json)
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
