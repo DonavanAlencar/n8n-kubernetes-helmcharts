@@ -1,128 +1,225 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "n8n.fullname" . }}-deployment
-  labels:
-    app: {{ include "n8n.name" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
-spec:
-  replicas: {{ .Values.replicaCount }}
-  selector:
-    matchLabels:
-      app: {{ include "n8n.name" . }}
-      release: {{ .Release.Name }}
-  template:
-    metadata:
-      labels:
-        app: {{ include "n8n.name" . }}
-        release: {{ .Release.Name }}
-    spec:
+  initContainers:
+    # 1) Ajusta permissões do diretório de dados do n8n no volume persistente.
+    - name: fix-permissions
+      image: {{ .Values.initContainers.fixPermissions.image.repository }}:{{ .Values.initContainers.fixPermissions.image.tag | default "1.36.0" }}
+      imagePullPolicy: {{ .Values.initContainers.fixPermissions.image.pullPolicy | default "IfNotPresent" }}
+      command:
+        - "sh"
+        - "-c"
+        - >
+          mkdir -p /home/node/.n8n &&
+          chown -R {{ .Values.podSecurityContext.runAsUser | default 1000 }}:{{ .Values.podSecurityContext.fsGroup | default 1000 }} /home/node/.n8n
+      volumeMounts:
+        - name: n8n-data
+          mountPath: /home/node/.n8n
+      resources:
+        {{- toYaml .Values.initContainers.fixPermissions.resources | nindent 12 }}
+
+    # 2) Aguarda o Redis ficar pronto (se habilitado)
+    {{- if .Values.redis.enabled }}
+    - name: wait-for-redis
+      image: {{ .Values.initContainers.waitForDependency.image.repository }}:{{ .Values.initContainers.waitForDependency.image.tag | default "1.36.0" }}
+      imagePullPolicy: {{ .Values.initContainers.waitForDependency.image.pullPolicy | default "IfNotPresent" }}
+      command:
+        - "sh"
+        - "-c"
+        - >
+          REDIS_HOST="{{ tpl .Values.redis.host . }}";
+          REDIS_PORT="{{ .Values.redis.port }}";
+          echo "⏳ Aguardando Redis ${REDIS_HOST}:${REDIS_PORT}...";
+          until nc -zv ${REDIS_HOST} ${REDIS_PORT}; do echo "Redis não disponível (${REDIS_HOST}:${REDIS_PORT}), aguardando..."; sleep 3; done;
+          echo "✅ Redis está pronto (${REDIS_HOST}:${REDIS_PORT})!"
+      resources:
+        {{- toYaml .Values.initContainers.waitForDependency.resources | nindent 12 }}
+    {{- end }}
+
+    # 3) Aguarda o PostgreSQL ficar pronto
+    - name: wait-for-postgres
+      image: {{ .Values.initContainers.waitForDependency.image.repository }}:{{ .Values.initContainers.waitForDependency.image.tag | default "1.36.0" }}
+      imagePullPolicy: {{ .Values.initContainers.waitForDependency.image.pullPolicy | default "IfNotPresent" }}
+      command:
+        - "sh"
+        - "-c"
+        - >
+          PG_HOST="{{ printf "%s-postgresql" (include "n8n.fullname" .) }}";
+          {{- if .Values.postgresql.service.ports.postgresql }}
+          PG_PORT="{{ .Values.postgresql.service.ports.postgresql }}";
+          {{- else }}
+          PG_PORT="5432"; # Fallback se não estiver definido no values do postgresql subchart
+          {{- end }}
+          echo "⏳ Aguardando PostgreSQL ${PG_HOST}:${PG_PORT}...";
+          until nc -zv ${PG_HOST} ${PG_PORT}; do echo "PostgreSQL não disponível (${PG_HOST}:${PG_PORT}), aguardando..."; sleep 3; done;
+          echo "✅ PostgreSQL está pronto (${PG_HOST}:${PG_PORT})!"
+      resources:
+        {{- toYaml .Values.initContainers.waitForDependency.resources | nindent 12 }}
+
+    # 4) Instala nós NPM extras (se definidos em .Values.n8n.extraNodePackages)
+    {{- if .Values.n8n.extraNodePackages }}
+    - name: install-nodes
+      image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      workingDir: /home/node/.n8n # IMPORTANTE: Executa npm no diretório de dados
+      command:
+        - sh
+        - -c
+        - |
+          echo "📦 Instalando pacotes NPM extras..."
+          mkdir -p /home/node/.n8n/node_modules # Garante que o diretório de destino para módulos exista
+          npm install --prefix /home/node/.n8n {{ range .Values.n8n.extraNodePackages }}{{ .name }}{{ range .installArgs }} {{ . }}{{ end }} {{ end }} && echo "✅ Pacotes NPM extras instalados."
+      volumeMounts:
+        - name: n8n-data
+          mountPath: /home/node/.n8n
+      resources:
+        {{- toYaml .Values.initContainers.installNodes.resources | nindent 12 }}
+    {{- end }}
+
+  containers:
+    - name: {{ .Chart.Name }}
       securityContext:
-        runAsUser: {{ .Values.securityContext.runAsUser }}
-        fsGroup: {{ .Values.securityContext.fsGroup }}
-
-      initContainers:
-        # 1) Ajusta permissões de /home/node/.n8n
-        - name: fix-permissions
-          image: {{ .Values.initContainers.fixPermissions.image }}
-          command:
-            - "sh"
-            - "-c"
-            - >
-              mkdir -p /home/node/.n8n;
-              chown -R {{ .Values.securityContext.runAsUser }}:{{ .Values.securityContext.fsGroup }} /home/node/.n8n || true
-          volumeMounts:
-            - name: n8n-data
-              mountPath: /home/node/.n8n
-
-        # 2) Aguarda o Redis ficar pronto (se habilitado)
-        {{- if .Values.initContainers.waitForRedis.enabled }}
-        - name: wait-for-redis
-          image: {{ .Values.initContainers.waitForRedis.image }}
-          command:
-            - "sh"
-            - "-c"
-            - >
-              echo "⏳ Aguardando Redis {{ tpl .Values.redisConfig.host . }}:{{ .Values.redisConfig.port }}...";
-              until nc -z {{ tpl .Values.redisConfig.host . }} {{ .Values.redisConfig.port }}; do sleep 3; done
-          volumeMounts: []
-        - name: wait-for-postgres
-          image: busybox:1.35.0
-          command:
-            - "sh"
-            - "-c"
-            - >
-              echo "⏳ Aguardando PostgreSQL n8n-my-n8n-postgresql:5432...";
-              until nc -z n8n-my-n8n-postgresql 5432; do sleep 3; done
-          volumeMounts: []
+        {{- toYaml .Values.securityContext | nindent 12 }}
+      image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command:
+        - "n8n"
+      args:
+        - "start"
+        {{- with .Values.n8n.extraArgs }}
+        {{- toYaml . | nindent 12 }}
+        {{- end }}
+      ports:
+        - name: http
+          containerPort: {{ .Values.service.port }}
+          protocol: TCP
+      env:
+        # Configurações para modo de execução
+        - name: EXECUTIONS_MODE
+          value: {{ .Values.n8n.executionsMode | default "regular" }} # "queue" se usando workers/scaling
+        {{- if eq .Values.n8n.executionsMode "queue" }}
+        - name: EXECUTIONS_PROCESS # 'main' para o pod principal, 'worker' para pods de worker
+          value: {{ .Values.n8n.executionsProcess | default "main" }}
         {{- end }}
 
-      containers:
-        - name: n8n
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.port }}
-              protocol: TCP
-          env:
-            - name: EXECUTIONS_PROCESS
-              value: "queue"
-            - name: EXECUTIONS_REDIS_HOST
-              value: {{ (include "n8n.fullname" .) | printf "%s-redis-master" | quote }}
-            - name: EXECUTIONS_REDIS_PORT
-              value: {{ .Values.redisConfig.port | quote }}
-            - name: DB_TYPE
-              value: "postgresdb"
-            - name: DB_POSTGRESDB_HOST
-              value: {{ (include "n8n.fullname" .) | printf "%s-postgresql" | quote }}
-            - name: DB_POSTGRESDB_PORT
-              value: "5432"
-            - name: DB_POSTGRESDB_DATABASE
-              value: {{ .Values.postgresql.database | quote }}
-            - name: DB_POSTGRESDB_USER
-              value: {{ .Values.postgresql.username | quote }}
-            - name: DB_POSTGRESDB_PASSWORD
-              value: {{ .Values.postgresql.password | quote }}
-            - name: N8N_DATABASE_MIGRATE
-              value: "true"
-            - name: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
-              value: "false"
-            - name: N8N_PORT
-              value: {{ .Values.service.port | quote }}
-            - name: N8N_HOST
-              value: "0.0.0.0"
-          volumeMounts:
-            - name: n8n-data
-              mountPath: /home/node/.n8n
-            - name: n8n-config
-              mountPath: /home/node/.n8n/config/settings.json
-              subPath: settings.json
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.probe.readiness.path | quote }}
-              port: {{ .Values.probe.readiness.port }}
-            initialDelaySeconds: {{ .Values.probe.readiness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.probe.readiness.periodSeconds }}
-            timeoutSeconds: {{ .Values.probe.readiness.timeoutSeconds }}
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.probe.liveness.path | quote }}
-              port: {{ .Values.probe.liveness.port }}
-            initialDelaySeconds: {{ .Values.probe.liveness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.probe.liveness.periodSeconds }}
-            timeoutSeconds: {{ .Values.probe.liveness.timeoutSeconds }}
+        # Configurações do Redis (se habilitado e modo queue)
+        {{- if and .Values.redis.enabled (eq .Values.n8n.executionsMode "queue") }}
+        # Para n8n >= 1.0
+        - name: QUEUE_BULL_REDIS_HOST
+          value: {{ tpl .Values.redis.host . }}
+        - name: QUEUE_BULL_REDIS_PORT
+          value: {{ .Values.redis.port | quote }}
+        {{- if .Values.redis.password }}
+        - name: QUEUE_BULL_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.redis.existingSecret | default (printf "%s-redis" (include "common.names.fullname" .)) }}
+              key: {{ .Values.redis.existingSecretPasswordKey | default "redis-password" }}
+        {{- end }}
+        {{- end }}
 
-      volumes:
+        # Configurações do Banco de Dados PostgreSQL
+        - name: DB_TYPE
+          value: "postgresdb"
+        - name: DB_POSTGRESDB_HOST
+          value: {{ printf "%s-postgresql" (include "n8n.fullname" .) }}
+        - name: DB_POSTGRESDB_PORT
+        {{- if .Values.postgresql.service.ports.postgresql }}
+          value: {{ .Values.postgresql.service.ports.postgresql | quote }}
+        {{- else }}
+          value: "5432" # Fallback
+        {{- end }}
+        - name: DB_POSTGRESDB_DATABASE
+          value: {{ .Values.postgresql.auth.database }}
+        - name: DB_POSTGRESDB_USER
+          value: {{ .Values.postgresql.auth.username }}
+        - name: DB_POSTGRESDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "n8n.fullname" .)) }}
+              key: {{ .Values.postgresql.auth.secretKeys.userPasswordKey | default "postgresql-password" }}
+
+        # Configurações Gerais do n8n
+        - name: N8N_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.n8n.existingEncryptionKeySecret | default (printf "%s-encryption-key" (include "n8n.fullname" .)) }}
+              key: {{ .Values.n8n.encryptionKeySecretKey | default "n8n-encryption-key" }}
+        - name: N8N_PORT
+          value: {{ .Values.service.port | quote }}
+        - name: N8N_HOST
+          value: "0.0.0.0"
+        - name: WEBHOOK_URL # URL pública do n8n
+          value: {{ .Values.n8n.webhookUrl }}
+        - name: GENERIC_TIMEZONE
+          value: {{ .Values.n8n.timezone | default "America/Sao_Paulo" }}
+        - name: NODE_ENV
+          value: {{ .Values.n8n.nodeEnv | default "production" }}
+        - name: N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN
+          value: "true" # Para n8n >= 1.26
+        - name: N8N_EMAIL_MODE
+          value: "smtp" # Para n8n >= 1.23, ajuste se necessário
+
+        {{- with .Values.n8n.extraEnvVars }}
+        {{- toYaml . | nindent 12 }}
+        {{- end }}
+      livenessProbe:
+        httpGet:
+          path: {{ .Values.livenessProbe.httpGet.path | default "/healthz" }}
+          port: http
+        initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+        periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+        timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+        failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        successThreshold: {{ .Values.livenessProbe.successThreshold }}
+      readinessProbe:
+        httpGet:
+          path: {{ .Values.readinessProbe.httpGet.path | default "/healthz" }}
+          port: http
+        initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+        periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+        timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+        failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        successThreshold: {{ .Values.readinessProbe.successThreshold }}
+      resources:
+        {{- toYaml .Values.resources | nindent 12 }}
+      volumeMounts:
         - name: n8n-data
-          persistentVolumeClaim:
-            claimName: {{ include "n8n.fullname" . }}-n8n-pvc
-        - name: n8n-config
-          configMap:
-            name: {{ include "n8n.fullname" . }}-config
-            defaultMode: 0644
-            items:
-              - key: settings.json
-                path: settings.json
+          mountPath: {{ .Values.persistence.mountPath | default "/home/node/.n8n" }}
+        {{- if .Values.n8n.configMap.enabled }}
+        - name: n8n-settings
+          mountPath: {{ .Values.persistence.mountPath | default "/home/node/.n8n" }}/config/settings.json
+          subPath: settings.json
+        {{- end }}
+        {{- with .Values.extraVolumeMounts }}
+        {{- toYaml . | nindent 12 }}
+        {{- end }}
+  volumes:
+    - name: n8n-data
+    {{- if .Values.persistence.enabled }}
+      persistentVolumeClaim:
+        claimName: {{ .Values.persistence.existingClaim | default (printf "%s-n8n-pvc" (include "n8n.fullname" .)) }}
+    {{- else }}
+      emptyDir: {}
+    {{- end }}
+    {{- if .Values.n8n.configMap.enabled }}
+    - name: n8n-settings
+      configMap:
+        name: {{ .Values.n8n.configMap.name | default (printf "%s-settings" (include "n8n.fullname" .)) }}
+        defaultMode: {{ .Values.n8n.configMap.defaultMode | default 420 }} # 0644 em decimal
+        items:
+          - key: settings.json
+            path: settings.json
+    {{- end }}
+    {{- with .Values.extraVolumes }}
+    {{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- with .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.affinity }}
+  affinity:
+    {{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 8 }}
+  {{- end }}

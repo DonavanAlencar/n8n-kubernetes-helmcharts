@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "5"
+    meta.helm.sh/release-name: my-n8n
+    meta.helm.sh/release-namespace: automacao546
+  creationTimestamp: "2025-06-04T02:26:43Z"
+  generation: 5
+  labels:
+    app: n8n
+    app.kubernetes.io/managed-by: Helm
+    chart: n8n-0.3.2
+    heritage: Helm
+    release: my-n8n
+  name: n8n-my-n8n-deployment
+  namespace: automacao546
+  resourceVersion: "3402223"
+  uid: 34c5bf80-ab75-41be-b74c-f99d0bf75b4b
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: n8n
+      release: my-n8n
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: n8n
+        release: my-n8n
+    spec:
+      containers:
+      - args:
+        - start
+        env:
+        - name: EXECUTIONS_PROCESS
+          value: queue
+        - name: EXECUTIONS_REDIS_HOST
+          value: n8n-my-n8n-redis-master
+        - name: EXECUTIONS_REDIS_PORT
+          value: "6379"
+        - name: DB_TYPE
+          value: postgresdb
+        - name: DB_POSTGRESDB_HOST
+          value: n8n-my-n8n-postgresql
+        - name: DB_POSTGRESDB_PORT
+          value: "5432"
+        - name: DB_POSTGRESDB_DATABASE
+          value: n8ndb
+        - name: DB_POSTGRESDB_USER
+          value: n8nuser
+        - name: DB_POSTGRESDB_PASSWORD
+          value: VhB1knK#2vgVkbnyyc%p%hB#aCx
+        - name: N8N_DATABASE_MIGRATE
+          value: "true"
+        - name: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+          value: "false"
+        - name: N8N_PORT
+          value: "5678"
+        - name: N8N_HOST
+          value: 0.0.0.0
+        image: n8nio/n8n:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /status/ready
+            port: 5678
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: n8n
+        ports:
+        - containerPort: 5678
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /status/ready
+            port: 5678
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /home/node/.n8n
+          name: n8n-data
+        - mountPath: /home/node/.n8n/config/settings.json
+          name: n8n-config
+          subPath: settings.json
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - |
+          mkdir -p /home/node/.n8n; chown -R 1000:1000 /home/node/.n8n || true
+        image: busybox:1.35.0
+        imagePullPolicy: IfNotPresent
+        name: fix-permissions
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /home/node/.n8n
+          name: n8n-data
+      - command:
+        - sh
+        - -c
+        - |
+          echo "⏳ Aguardando Redis my-n8n-redis-master:6379..."; until nc -z my-n8n-redis-master 6379; do sleep 3; done
+        image: busybox:1.35.0
+        imagePullPolicy: IfNotPresent
+        name: wait-for-redis
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      - command:
+        - sh
+        - -c
+        - |
+          echo "⏳ Aguardando PostgreSQL n8n-my-n8n-postgresql:5432..."; until nc -z n8n-my-n8n-postgresql 5432; do sleep 3; done
+        image: busybox:1.35.0
+        imagePullPolicy: IfNotPresent
+        name: wait-for-postgres
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: n8n-data
+        persistentVolumeClaim:
+          claimName: n8n-my-n8n-n8n-pvc
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: settings.json
+            path: settings.json
+          name: n8n-my-n8n-config
+        name: n8n-config
+status:
+  conditions:
+  - lastTransitionTime: "2025-06-04T02:26:49Z"
+    lastUpdateTime: "2025-06-04T02:26:49Z"
+    message: Deployment does not have minimum availability.
+    reason: MinimumReplicasUnavailable
+    status: "False"
+    type: Available
+  - lastTransitionTime: "2025-06-04T03:05:30Z"
+    lastUpdateTime: "2025-06-04T03:05:30Z"
+    message: ReplicaSet "n8n-my-n8n-deployment-6898bb4889" has timed out progressing.
+    reason: ProgressDeadlineExceeded
+    status: "False"
+    type: Progressing
+  observedGeneration: 5
+  replicas: 2
+  unavailableReplicas: 2
+  updatedReplicas: 1

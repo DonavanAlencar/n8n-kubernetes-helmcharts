@@ -372,11 +372,22 @@ spec:
               echo "⏳ Aguardando Redis my-n8n-redis-master:6379...";
               until nc -z my-n8n-redis-master 6379; do sleep 3; done
           volumeMounts: []
+        - name: wait-for-postgres
+          image: busybox:1.35.0
+          command:
+            - "sh"
+            - "-c"
+            - >
+              echo "⏳ Aguardando PostgreSQL n8n-my-n8n-postgresql:5432...";
+              until nc -z n8n-my-n8n-postgresql 5432; do sleep 3; done
+          volumeMounts: []
 
       containers:
         - name: n8n
           image: "n8nio/n8n:latest"
           imagePullPolicy: IfNotPresent
+          args:
+            - "start"
           ports:
             - name: http
               containerPort: 5678
